@@ -1,0 +1,29 @@
+services:
+  bidy-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001/api}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:8001/api}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3001}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Bidy}
+        NEXT_PUBLIC_APP_DESCRIPTION: ${NEXT_PUBLIC_APP_DESCRIPTION:-Vietnamese Online Auction Platform}
+        NEXT_PUBLIC_MAX_IMAGE_SIZE: ${NEXT_PUBLIC_MAX_IMAGE_SIZE:-10485760}
+        NEXT_PUBLIC_SUPPORTED_FORMATS: ${NEXT_PUBLIC_SUPPORTED_FORMATS:-jpeg,jpg,png,webp}
+        NEXT_PUBLIC_DEFAULT_PAGE_SIZE: ${NEXT_PUBLIC_DEFAULT_PAGE_SIZE:-12}
+        NEXT_PUBLIC_ADMIN_PAGE_SIZE: ${NEXT_PUBLIC_ADMIN_PAGE_SIZE:-10}
+        NEXT_PUBLIC_ENABLE_CHAT: ${NEXT_PUBLIC_ENABLE_CHAT:-true}
+        NEXT_PUBLIC_ENABLE_NOTIFICATIONS: ${NEXT_PUBLIC_ENABLE_NOTIFICATIONS:-true}
+        NEXT_PUBLIC_ENABLE_DARK_MODE: ${NEXT_PUBLIC_ENABLE_DARK_MODE:-true}
+        NEXT_PUBLIC_SHOW_DEV_TOOLS: ${NEXT_PUBLIC_SHOW_DEV_TOOLS:-false}
+        NEXT_PUBLIC_ENABLE_DEBUG: ${NEXT_PUBLIC_ENABLE_DEBUG:-false}
+        NEXT_PUBLIC_LOG_LEVEL: ${NEXT_PUBLIC_LOG_LEVEL:-INFO}
+    image: bidy-frontend:latest
+    restart: unless-stopped
+    networks:
+      - bidy-network
+
+networks:
+  bidy-network:
+    external: true

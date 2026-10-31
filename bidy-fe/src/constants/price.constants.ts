@@ -1,0 +1,1 @@
+export const MAX_AUCTION_PRICE = 9_999_999_999.99; // DECIMAL(12,2) phía BE

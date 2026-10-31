@@ -1,0 +1,147 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bidy-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-bidy_db}
+    # Loopback only: Docker-published ports bypass ufw, so 0.0.0.0 would expose
+    # the DB to the internet. Reach it from outside via an SSH tunnel.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - bidy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: bidy-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?PGADMIN_DEFAULT_EMAIL is required}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?PGADMIN_DEFAULT_PASSWORD is required}
+    ports:
+      - "127.0.0.1:5050:80"
+    networks:
+      - bidy-network
+    depends_on:
+      - postgres
+
+  redis:
+    image: redis:7-alpine
+    container_name: bidy-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - bidy-network
+    healthcheck:
+      # Unauthenticated `redis-cli ping` exits 0 even on a NOAUTH reply, so it would report healthy regardless.
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API instance(s) — handles HTTP + Socket.IO traffic. Scale this with
+  # `docker compose up -d --scale bidy-be=N`; cron stays off here so it
+  # never runs duplicated across replicas.
+  bidy-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bidy-backend:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 8001
+      # Points at the containerized postgres/redis services above; overrides
+      # whatever host is in .env's POSTGRES_HOST/REDIS_HOST. The redis client
+      # (src/common/redis/redis.client.ts) reads REDIS_HOST/PORT, not a URL.
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      ENABLE_CRON: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bidy-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Single dedicated instance that owns the cron jobs (auction lifecycle,
+  # auto-bid backup, payment deadlines). Not reachable from nginx/frontend —
+  # it emits realtime events through the Redis-backed Socket.IO adapter,
+  # which fans them out to clients connected on the bidy-be API replicas.
+  # Do not scale this above 1 replica.
+  bidy-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bidy-backend:latest
+    container_name: bidy-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 8001
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      ENABLE_CRON: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bidy-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: bidy-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      bidy-backend:
+        condition: service_healthy
+    networks:
+      - bidy-network
+
+networks:
+  bidy-network:
+    name: bidy-network
+    external: true
+
+volumes:
+  postgres-data:
+  redis-data:

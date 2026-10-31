@@ -1,0 +1,91 @@
+
+> fe@0.1.0 prebuild
+> npm run validate-env
+
+
+> fe@0.1.0 validate-env
+> node scripts/validate-env.js
+
+🔍 Bidy Frontend - Environment Validation Tool
+
+📁 Environment Files:
+   ✅ .env.local
+   ❌ .env
+   ✅ .env.example
+
+[dotenv@17.2.1] injecting env (15) from .env.local -- tip: ⚙️  write to custom object with { processEnv: myObject }
+🔍 Required Variables:
+   ✅ NEXT_PUBLIC_API_URL: http://localhost:8000
+
+💡 Recommended Variables:
+   ✅ NEXT_PUBLIC_WS_URL: ws://localhost:8000
+   ✅ NEXT_PUBLIC_APP_URL: http://localhost:3001
+   ✅ NEXT_PUBLIC_MAX_IMAGE_SIZE: 10485760
+   ✅ NEXT_PUBLIC_DEFAULT_PAGE_SIZE: 12
+
+⚙️  Optional Variables:
+   ✅ NEXT_PUBLIC_ENABLE_CHAT: true (Enable chat feature)
+   ✅ NEXT_PUBLIC_ENABLE_NOTIFICATIONS: true (Enable notifications)
+   ✅ NEXT_PUBLIC_ENABLE_DARK_MODE: true (Enable dark mode toggle)
+   ✅ NEXT_PUBLIC_SHOW_DEV_TOOLS: true (Show development tools)
+   ✅ NEXT_PUBLIC_ENABLE_DEBUG: true (Enable debug logging)
+
+🌐 URL Validation:
+   ✅ NEXT_PUBLIC_API_URL: Valid URL format
+   ✅ NEXT_PUBLIC_WS_URL: Valid URL format
+   ✅ NEXT_PUBLIC_APP_URL: Valid URL format
+
+🔢 Numeric Validation:
+   ✅ NEXT_PUBLIC_MAX_IMAGE_SIZE: 10485760
+   ✅ NEXT_PUBLIC_DEFAULT_PAGE_SIZE: 12
+
+📊 Validation Summary:
+   ✅ All validations passed - environment is properly configured!
+
+> fe@0.1.0 build
+> next build
+
+   ▲ Next.js 15.3.4
+   - Environments: .env.local, .env.production
+   - Experiments (use with caution):
+     ✓ optimizeCss
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 5.0s
+   Linting and checking validity of types ...
+
+./src/app/category/all/page.tsx
+52:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+59:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+69:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+80:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+87:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/app/category/dien-tu/page.tsx
+27:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+53:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+94:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+101:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+111:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+122:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+129:42  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+142:6  Warning: React Hook useEffect has missing dependencies: 'electronicsCategory', 'filterState', and 'setFilterState'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/app/product/[id]/components/ProductCTA.tsx
+73:6  Warning: React Hook useEffect has a missing dependency: 'currentUserId'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/app/profile/page.tsx
+122:6  Warning: React Hook useMemo has a missing dependency: 'productTab'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/app/reset-password/page.tsx
+197:10  Warning: 'ResetPasswordFallback' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/app/signin/page.tsx
+157:10  Warning: 'SignInFallback' is defined but never used.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+   Collecting page data ...
+unhandledRejection ReferenceError: self is not defined
+    at Object.<anonymous> (.next/server/framework-27161c75.js:1:1) {
+  type: 'ReferenceError'
+}

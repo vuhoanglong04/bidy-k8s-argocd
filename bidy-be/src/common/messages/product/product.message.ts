@@ -1,0 +1,32 @@
+export const PRODUCT_MESSAGE = {
+  GET_ALL_SUCCESS: 'Products retrieved successfully',
+  GET_BY_ID_SUCCESS: 'Product retrieved successfully',
+  CREATE_SUCCESS: 'Product created successfully',
+  UPDATE_SUCCESS: 'Product updated successfully',
+  DELETE_SUCCESS: 'Product deleted successfully',
+  GET_MY_PRODUCTS_SUCCESS: 'My products retrieved successfully',
+  PRODUCT_NOT_FOUND: 'Product not found',
+  PRODUCT_FORBIDDEN: 'Access denied: You do not have permission to modify this product',
+  PRODUCT_CATEGORY_INVALID: 'Product category is invalid or inactive',
+  IMAGE_UPLOAD_SUCCESS: 'Product image(s) uploaded successfully',
+  IMAGE_DELETE_SUCCESS: 'Product image deleted successfully',
+  IMAGE_SET_PRIMARY_SUCCESS: 'Primary image set successfully',
+  IMAGE_REORDER_SUCCESS: 'Product images reordered successfully',
+  IMAGE_NOT_FOUND: 'Product image not found',
+  UPDATE_STATUS_SUCCESS: 'Product status updated successfully',
+  PRODUCT_STATUS_TRANSITION_INVALID: 'This status change is not allowed',
+  PRODUCT_NEEDS_IMAGE_TO_PUBLISH: 'A product needs at least one image before it can be published',
+  PRODUCT_HAS_LIVE_AUCTION: 'This product has a pending or running auction; end it first',
+  PRODUCT_NOT_AUCTIONABLE: 'Only a published product with at least one image can be auctioned',
+};
+
+export const PRODUCT_ERROR_CODE = {
+  PRODUCT_FORBIDDEN: 'PRODUCT_FORBIDDEN',
+  PRODUCT_CATEGORY_INVALID: 'PRODUCT_CATEGORY_INVALID',
+  PRODUCT_NOT_FOUND: 'PRODUCT_NOT_FOUND',
+  PRODUCT_IMAGE_NOT_FOUND: 'PRODUCT_IMAGE_NOT_FOUND',
+  PRODUCT_STATUS_TRANSITION_INVALID: 'PRODUCT_STATUS_TRANSITION_INVALID',
+  PRODUCT_NEEDS_IMAGE_TO_PUBLISH: 'PRODUCT_NEEDS_IMAGE_TO_PUBLISH',
+  PRODUCT_HAS_LIVE_AUCTION: 'PRODUCT_HAS_LIVE_AUCTION',
+  PRODUCT_NOT_AUCTIONABLE: 'PRODUCT_NOT_AUCTIONABLE',
+};

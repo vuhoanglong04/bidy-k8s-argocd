@@ -1,0 +1,1305 @@
+openapi: 3.0.0
+info:
+  title: BE Auction API
+  version: 1.0.0
+  description: API documentation for the BE Auction platform.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.bidy.vn
+    description: Production server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "user123"
+        user_name:
+          type: string
+          example: "johndoe"
+        full_name:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          example: "john@example.com"
+        identity:
+          type: string
+          example: "123456789"
+        phone:
+          type: string
+          example: "0123456789"
+        avatar:
+          type: string
+          example: "https://example.com/avatar.jpg"
+        role:
+          type: string
+          example: "user"
+        status:
+          type: boolean
+          example: true
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "cat123"
+        name:
+          type: string
+          example: "Electronics"
+        image:
+          type: array
+          items:
+            type: string
+            example: "https://example.com/image.jpg"
+        status:
+          type: boolean
+          example: true
+    Auction:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "auc123"
+        name:
+          type: string
+          example: "iPhone 14 Pro Max"
+        owner:
+          $ref: '#/components/schemas/User'
+        time_remain:
+          type: string
+          example: "24h"
+        quantity:
+          type: number
+          example: 1
+        image:
+          type: array
+          items:
+            type: string
+            example: "https://example.com/image.jpg"
+        description:
+          type: string
+          example: "Brand new iPhone 14 Pro Max."
+        category:
+          $ref: '#/components/schemas/Category'
+        finishedTime:
+          type: string
+          format: date-time
+          example: "2024-06-01T12:00:00Z"
+        price:
+          type: string
+          example: "1000"
+        priceBuyNow:
+          type: string
+          example: "1200"
+        hasActiveAutoBid:
+          type: boolean
+          example: false
+        status:
+          type: string
+          example: "active"
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "order123"
+        user_id:
+          $ref: '#/components/schemas/User'
+        bid_id:
+          $ref: '#/components/schemas/Auction'
+        price:
+          type: string
+          example: "1000"
+        isPayment:
+          type: boolean
+          example: false
+    Wishlist:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "wishlist123"
+        user_id:
+          $ref: '#/components/schemas/User'
+        auction_id:
+          $ref: '#/components/schemas/Auction'
+        status:
+          type: string
+          example: "true"
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "msg123"
+        senderId:
+          $ref: '#/components/schemas/User'
+        conversationId:
+          type: string
+          example: "conv123"
+        message:
+          type: string
+          example: "Hello!"
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "conv123"
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    # Standard API response wrapper
+    ApiResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "input_correct"
+        data:
+          nullable: true
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: User
+  - name: Auction
+  - name: Admin
+  - name: Chat
+
+paths:
+  # User endpoints
+  /user/check:
+    post:
+      tags: [User]
+      summary: Check if user exists
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "user@example.com"
+      responses:
+        '200':
+          description: User check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exists:
+                    type: boolean
+                    example: true
+  /user/login:
+    post:
+      tags: [User]
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userName:
+                  type: string
+                  example: "johndoe"
+                password:
+                  type: string
+                  example: "password123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          token:
+                            type: string
+                            example: "jwt.token.here"
+                          user:
+                            $ref: '#/components/schemas/User'
+  /user/signup:
+    post:
+      tags: [User]
+      summary: User registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "user@example.com"
+                password:
+                  type: string
+                  example: "password123"
+                name:
+                  type: string
+                  example: "John Doe"
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /user/profile:
+    get:
+      tags: [User]
+      summary: Get user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /user/update:
+    patch:
+      tags: [User]
+      summary: Update user profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Jane Doe"
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /user/forgot-password:
+    post:
+      tags: [User]
+      summary: Forgot password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "user@example.com"
+      responses:
+        '200':
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Reset email sent"
+  /user/reset-password:
+    post:
+      tags: [User]
+      summary: Reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  example: "reset.token.here"
+                newPassword:
+                  type: string
+                  example: "newpassword123"
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password reset"
+  /user/otp:
+    post:
+      tags: [User]
+      summary: Send OTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "user@example.com"
+      responses:
+        '200':
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  otp:
+                    type: string
+                    example: "123456"
+  /user/resend-verify:
+    get:
+      tags: [User]
+      summary: Resend verification link
+      parameters:
+        - in: query
+          name: email
+          required: true
+          schema:
+            type: string
+          example: "user@example.com"
+      responses:
+        '200':
+          description: Verification link resent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Verification link sent"
+  /user/verify:
+    get:
+      tags: [User]
+      summary: Verify account via link
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema:
+            type: string
+          example: "jwt.token.here"
+      responses:
+        '200':
+          description: Account verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verified:
+                    type: boolean
+                    example: true
+  /user/changePassword:
+    put:
+      tags: [User]
+      summary: Change password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                oldPassword:
+                  type: string
+                  example: "oldpassword123"
+                newPassword:
+                  type: string
+                  example: "newpassword123"
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password changed"
+  /user/wishlist:
+    get:
+      tags: [User]
+      summary: Get wishlist
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wishlist
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Auction'
+  /user/wishlist/add/{id}:
+    post:
+      tags: [User]
+      summary: Add to wishlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "auc123"
+      responses:
+        '200':
+          description: Added to wishlist
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Added to wishlist"
+  /user/wishlist/remove/{id}:
+    delete:
+      tags: [User]
+      summary: Remove from wishlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "auc123"
+      responses:
+        '200':
+          description: Removed from wishlist
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Removed from wishlist"
+  /user/wishlist/removeAll:
+    delete:
+      tags: [User]
+      summary: Remove all from wishlist
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All removed from wishlist
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "All removed from wishlist"
+  /user/:
+    get:
+      tags: [User]
+      summary: Get user list (admin)
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  # Auction endpoints
+  /auction/images:
+    post:
+      tags: [Auction]
+      summary: Get upload URL for images
+      responses:
+        '200':
+          description: Upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    example: "https://s3.amazonaws.com/bucket/upload-url"
+  /auction/listing:
+    post:
+      tags: [Auction]
+      summary: Create a new auction listing
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                title:
+                  type: string
+                  example: "iPhone 14 Pro Max"
+                category:
+                  type: string
+                  example: "cat123"
+                price:
+                  type: number
+                  example: 1000
+      responses:
+        '201':
+          description: Auction created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Auction'
+  /auction/order:
+    get:
+      tags: [Auction]
+      summary: Get user orders
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      example: "order123"
+                    auction:
+                      $ref: '#/components/schemas/Auction'
+                    status:
+                      type: string
+                      example: "completed"
+  /auction/categories:
+    get:
+      tags: [Auction]
+      summary: Get all categories
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+  /auction/myAuction:
+    get:
+      tags: [Auction]
+      summary: Get my auctions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of my auctions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Auction'
+  /auction/cart:
+    get:
+      tags: [Auction]
+      summary: View cart
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cart contents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Auction'
+  /auction/test:
+    get:
+      tags: [Auction]
+      summary: Test auto bid activation
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Auto bid activated"
+  /auction/end:
+    get:
+      tags: [Auction]
+      summary: Get ended auctions
+      responses:
+        '200':
+          description: List of ended auctions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Auction'
+  /auction/{status}:
+    get:
+      tags: [Auction]
+      summary: Get auctions by status
+      parameters:
+        - in: path
+          name: status
+          required: true
+          schema:
+            type: string
+          example: "active"
+      responses:
+        '200':
+          description: List of auctions by status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Auction'
+  /auction/category/{category}:
+    get:
+      tags: [Auction]
+      summary: Get products by category
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema:
+            type: string
+          example: "cat123"
+      responses:
+        '200':
+          description: List of products in category
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Auction'
+  /auction/listing/{id}:
+    get:
+      tags: [Auction]
+      summary: Get product by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "auc123"
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Auction'
+  /auction/listing/search/{keyword}:
+    get:
+      tags: [Auction]
+      summary: Search products by keyword
+      parameters:
+        - in: path
+          name: keyword
+          required: true
+          schema:
+            type: string
+          example: "iPhone"
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Auction'
+  /auction/listing/{id}/buy-now:
+    post:
+      tags: [Auction]
+      summary: Buy now
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "auc123"
+      responses:
+        '200':
+          description: Buy now result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Purchase successful"
+  /auction/listing/{id}/bid:
+    post:
+      tags: [Auction]
+      summary: Place a bid
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "auc123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  example: 1050
+      responses:
+        '200':
+          description: Bid placed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Bid placed"
+  /auction/listing/{id}/auto-bid:
+    post:
+      tags: [Auction]
+      summary: Set up auto-bid
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "auc123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxAmount:
+                  type: number
+                  example: 2000
+      responses:
+        '200':
+          description: Auto-bid set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Auto-bid set"
+  /auction/myAuction/{id}/delete:
+    delete:
+      tags: [Auction]
+      summary: Delete my auction
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "auc123"
+      responses:
+        '200':
+          description: Auction deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Auction deleted"
+  /auction/{id}/end:
+    post:
+      tags: [Auction]
+      summary: End auction event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "auc123"
+      responses:
+        '200':
+          description: Auction ended
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Auction ended"
+  /auction/order/create:
+    post:
+      tags: [Auction]
+      summary: Create order
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                auctionId:
+                  type: string
+                  example: "auc123"
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: "order123"
+                  status:
+                    type: string
+                    example: "pending"
+
+  # Admin endpoints
+  /admin/get-all-user:
+    get:
+      tags: [Admin]
+      summary: Get all users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+  /admin/update-status-user/{id}:
+    put:
+      tags: [Admin]
+      summary: Update user status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "user123"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: "active"
+      responses:
+        '200':
+          description: User status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /admin/get-all-auction:
+    get:
+      tags: [Admin]
+      summary: Get all auctions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of auctions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Auction'
+  /admin/get-all-category:
+    get:
+      tags: [Admin]
+      summary: Get all categories
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+  /admin/create-category:
+    post:
+      tags: [Admin]
+      summary: Create category
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                name:
+                  type: string
+                  example: "Electronics"
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+  /admin/update-category/{id}:
+    patch:
+      tags: [Admin]
+      summary: Update category
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "cat123"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                images:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                name:
+                  type: string
+                  example: "Electronics"
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+  /admin/delete-category/{id}:
+    delete:
+      tags: [Admin]
+      summary: Delete category
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "cat123"
+      responses:
+        '200':
+          description: Category deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Category deleted"
+  /admin/get-statistic:
+    get:
+      tags: [Admin]
+      summary: Get statistics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalUsers:
+                    type: integer
+                    example: 100
+                  totalAuctions:
+                    type: integer
+                    example: 50
+                  totalOrders:
+                    type: integer
+                    example: 200
+
+  # Chat endpoints
+  /chat/admin/get-all:
+    get:
+      tags: [Chat]
+      summary: Get all conversations (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      example: "conv123"
+                    participants:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/User'
+  /chat/conversation/me:
+    get:
+      tags: [Chat]
+      summary: Get my conversations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of my conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      example: "conv123"
+                    participants:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/User'
+  /chat/conversation/{id}:
+    get:
+      tags: [Chat]
+      summary: Get conversation by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "conv123"
+      responses:
+        '200':
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: "conv123"
+                  participants:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+  /chat/conversation:
+    post:
+      tags: [Chat]
+      summary: Create conversation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                participantIds:
+                  type: array
+                  items:
+                    type: string
+                  example: ["user123", "user456"]
+      responses:
+        '201':
+          description: Conversation created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: "conv123"
+  /chat/message:
+    post:
+      tags: [Chat]
+      summary: Send message
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conversationId:
+                  type: string
+                  example: "conv123"
+                content:
+                  type: string
+                  example: "Hello!"
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+  /chat/get-message-by-user:
+    get:
+      tags: [Chat]
+      summary: Get all messages by user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+  /chat/get-message-conversation/{id}:
+    get:
+      tags: [Chat]
+      summary: Get all messages by conversation ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "conv123"
+      responses:
+        '200':
+          description: List of messages in conversation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message' 

@@ -1,0 +1,128 @@
+name: CI/CD (dev) - bidy-fe
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+concurrency:
+  group: cicd-dev-fe-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 24.x
+  IMAGE_NAME: bidy-fe
+
+jobs:
+  ci:
+    name: Lint & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:coverage
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  cd:
+    name: Build, push & update GitOps
+    needs: ci
+    # Only deploy from dev; PRs just run CI.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image ref
+        id: meta
+        run: |
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${owner}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "tag=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # NEXT_PUBLIC_* are inlined into the client bundle at build time, so they
+      # must be build args. Set them as repository/environment *variables*
+      # (Settings > Secrets and variables > Actions > Variables); defaults below
+      # target the local kind cluster.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'http://bidy.localtest.me/api' }}
+            NEXT_PUBLIC_WS_URL=${{ vars.NEXT_PUBLIC_WS_URL || 'ws://bidy.localtest.me/api' }}
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'http://bidy.localtest.me' }}
+            NEXT_PUBLIC_APP_NAME=${{ vars.NEXT_PUBLIC_APP_NAME || 'Bidy' }}
+            NEXT_PUBLIC_APP_DESCRIPTION=${{ vars.NEXT_PUBLIC_APP_DESCRIPTION || 'Vietnamese Online Auction Platform' }}
+            NEXT_PUBLIC_MAX_IMAGE_SIZE=${{ vars.NEXT_PUBLIC_MAX_IMAGE_SIZE || '10485760' }}
+            NEXT_PUBLIC_SUPPORTED_FORMATS=${{ vars.NEXT_PUBLIC_SUPPORTED_FORMATS || 'jpeg,jpg,png,webp' }}
+            NEXT_PUBLIC_DEFAULT_PAGE_SIZE=${{ vars.NEXT_PUBLIC_DEFAULT_PAGE_SIZE || '12' }}
+            NEXT_PUBLIC_ADMIN_PAGE_SIZE=${{ vars.NEXT_PUBLIC_ADMIN_PAGE_SIZE || '10' }}
+            NEXT_PUBLIC_ENABLE_CHAT=${{ vars.NEXT_PUBLIC_ENABLE_CHAT || 'true' }}
+            NEXT_PUBLIC_ENABLE_NOTIFICATIONS=${{ vars.NEXT_PUBLIC_ENABLE_NOTIFICATIONS || 'true' }}
+            NEXT_PUBLIC_ENABLE_DARK_MODE=${{ vars.NEXT_PUBLIC_ENABLE_DARK_MODE || 'true' }}
+            NEXT_PUBLIC_SHOW_DEV_TOOLS=${{ vars.NEXT_PUBLIC_SHOW_DEV_TOOLS || 'false' }}
+            NEXT_PUBLIC_ENABLE_DEBUG=${{ vars.NEXT_PUBLIC_ENABLE_DEBUG || 'false' }}
+            NEXT_PUBLIC_LOG_LEVEL=${{ vars.NEXT_PUBLIC_LOG_LEVEL || 'INFO' }}
+
+      # Required: secret GITOPS_TOKEN (PAT / fine-grained token with contents:write on the GitOps repo)
+      #           variable GITOPS_REPO (e.g. "<owner>/bidy-gitops")
+      # Optional: variable GITOPS_DEV_PATH_FE (default: apps/bidy/overlays/dev)
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+
+      - name: Bump image tag
+        working-directory: gitops/${{ vars.GITOPS_DEV_PATH_FE || 'apps/bidy/overlays/dev' }}
+        run: |
+          kustomize edit set image \
+            "${{ steps.meta.outputs.image }}=${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}"
+
+      - name: Commit & push
+        working-directory: gitops
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit"; exit 0
+          fi
+          git commit -m "chore(dev): bidy-fe -> ${{ steps.meta.outputs.tag }}"
+          git pull --rebase origin "$(git rev-parse --abbrev-ref HEAD)"
+          git push
