@@ -55,6 +55,7 @@ jobs:
     # Only deploy from dev; PRs just run CI.
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
+    environment: dev
     permissions:
       contents: read
     steps:
