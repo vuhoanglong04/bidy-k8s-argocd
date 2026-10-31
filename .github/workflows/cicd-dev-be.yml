@@ -1,0 +1,83 @@
+name: CI/CD (dev) - bidy-be
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'bidy-be/**'
+      - '.github/workflows/cicd-dev-be.yml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'bidy-be/**'
+      - '.github/workflows/cicd-dev-be.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: cicd-dev-be-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 24.x
+  IMAGE_NAME: bidy-be
+
+jobs:
+  ci:
+    name: Lint & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bidy-be
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: bidy-be/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      # src/tests/run-checks.ts spawns every *.check.ts in its own tsx process.
+      # .env is committed to the repo, so dotenv picks it up automatically.
+      - run: npm test
+
+  cd:
+    name: Build & push image
+    needs: ci
+    # Only deploy from dev; PRs just run CI.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image ref
+        id: meta
+        run: |
+          echo "image=${{ vars.DOCKERHUB_USERNAME }}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "tag=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # arm64 is included so the image runs on a local kind cluster on Apple Silicon.
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./bidy-be
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
