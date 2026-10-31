@@ -68,6 +68,11 @@ ENV NODE_ENV=production \
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
 
+# npm/corepack ship their own copies of brace-expansion/undici etc. that Trivy
+# flags; the app only needs `node` at runtime.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+  /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 # Standalone output already contains a minimal node_modules + server.js
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
