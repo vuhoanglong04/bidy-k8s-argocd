@@ -3,16 +3,18 @@
 ################################
 # 1) deps: install dependencies only (cached layer)
 ################################
-FROM node:24.22.1-alpine AS deps
+# deps/builder run on the BUILD host's native arch (never under QEMU): `next build` output
+# is plain JS and arch-neutral. Only the native `sharp` binary is per-arch, see `sharp` stage.
+FROM --platform=$BUILDPLATFORM node:24.22.1-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 
 ################################
 # 2) builder: build the Next.js app
 ################################
-FROM node:24.22.1-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:24.22.1-alpine AS builder
 WORKDIR /app
 
 # Build-time public config — NEXT_PUBLIC_* vars are inlined into the client
@@ -52,7 +54,17 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN npm run build
+RUN --mount=type=cache,target=/app/.next/cache npm run build
+
+################################
+# 2b) sharp: next/image's native binary for the TARGET arch. It is a prebuilt-binary
+# download, so it stays fast even when the target arch is emulated.
+# Keep the version in sync with package.json (overrides.sharp).
+################################
+FROM node:24.22.1-alpine AS sharp
+WORKDIR /sharp
+RUN npm init -y >/dev/null \
+  && npm install sharp@0.35.5 --no-audit --no-fund
 
 ################################
 # 3) runner: minimal production image
@@ -77,6 +89,8 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack 
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Overwrite the build-arch sharp that standalone traced with the target-arch one
+COPY --from=sharp --chown=nextjs:nodejs /sharp/node_modules ./node_modules
 
 USER nextjs
 
