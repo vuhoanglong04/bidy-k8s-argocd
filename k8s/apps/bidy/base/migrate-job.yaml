@@ -1,0 +1,51 @@
+# Runs DB migrations + idempotent seed on every Argo CD sync, after Postgres/Redis
+# (wave 0) are healthy and before the app Deployments (wave 2).
+# Hook + BeforeHookCreation: the finished Job is replaced on the next sync, which
+# avoids "field is immutable" errors when the image tag changes.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: bidy-migrate
+  namespace: bidy-dev
+  labels:
+    app.kubernetes.io/name: bidy-migrate
+    app.kubernetes.io/part-of: bidy
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 4
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bidy-migrate
+        app.kubernetes.io/part-of: bidy
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: longvulinhhoang/bidy-be:dev
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              node dist/common/scripts/run-migrations.js
+              # Seed is idempotent but uploads images to R2 for the auction fixtures; with
+              # placeholder R2 credentials it fails after admin/categories are created.
+              # Don't fail the sync over it.
+              node dist/database/seeds/index.js || echo "seed finished with errors (check R2 credentials), continuing"
+          envFrom:
+            - configMapRef:
+                name: bidy-config
+            - secretRef:
+                name: bidy-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi

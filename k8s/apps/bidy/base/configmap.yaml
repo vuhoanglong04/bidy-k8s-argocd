@@ -1,0 +1,48 @@
+# Non-sensitive backend config. Sensitive values live in secret.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bidy-config
+  namespace: bidy-dev
+  labels:
+    app.kubernetes.io/part-of: bidy
+data:
+  NODE_ENV: production
+  PORT: "8001"
+
+  # In-cluster service names (see postgres.yaml / redis.yaml)
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: postgres
+  POSTGRES_DB: bidy_db
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+
+  # Public URL served by the Ingress
+  CLIENT_URL: http://bidy.localtest.me
+  SERVER_URL: http://bidy.localtest.me
+  ALLOWED_ORIGINS: http://bidy.localtest.me
+
+  JWT_EXPIRES_IN: 15m
+  JWT_REFRESH_EXPIRES_IN: 7d
+  JWT_REFRESH_TTL_SECONDS: "604800"
+  JWT_REFRESH_GRACE_SECONDS: "30"
+  VERIFY_TOKEN_TTL_SECONDS: "900"
+  RESET_TOKEN_TTL_SECONDS: "900"
+  BCRYPT_SALT_ROUNDS: "12"
+
+  # Object storage (Cloudflare R2). Placeholders: set real values per environment.
+  BUCKET_NAME: bidy-dev
+  R2_ENDPOINT: https://your_account_id.r2.cloudflarestorage.com
+
+  SEPAY_BANK_NAME: MBBank
+  SEPAY_ACCOUNT_NUMBER: "1017588888"
+  SEPAY_ACCOUNT_NAME: CONG TY BIDY
+  SEPAY_PAYMENT_PREFIX: BIDY
+
+  MAIL_FROM: your_email@gmail.com
+  ADMIN_EMAIL: admin@bidy.local
+  ID_ADMIN: ""
+  LIMIT_NUMBER: "100"
+  PLATFORM_WALLET_ID: "1"
+  DEBUG: "false"

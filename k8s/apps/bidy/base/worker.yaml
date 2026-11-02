@@ -1,0 +1,60 @@
+# Single dedicated instance that owns the cron jobs (auction lifecycle, auto-bid
+# backup, payment deadlines). Not exposed through any Service. Do not scale above 1.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bidy-worker
+  namespace: bidy-dev
+  labels:
+    app.kubernetes.io/name: bidy-worker
+    app.kubernetes.io/part-of: bidy
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # never run two cron owners side by side during a rollout
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bidy-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bidy-worker
+        app.kubernetes.io/part-of: bidy
+    spec:
+      containers:
+        - name: worker
+          image: longvulinhhoang/bidy-be:dev
+          ports:
+            - name: http
+              containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: bidy-config
+            - secretRef:
+                name: bidy-secret
+          env:
+            - name: ENABLE_CRON
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

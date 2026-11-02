@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     permissions:
-      contents: read
+      contents: write # commits the new image tag back to the repo
     steps:
       - uses: actions/checkout@v4
 
@@ -163,3 +163,24 @@ jobs:
             NEXT_PUBLIC_SHOW_DEV_TOOLS=${{ vars.NEXT_PUBLIC_SHOW_DEV_TOOLS || 'false' }}
             NEXT_PUBLIC_ENABLE_DEBUG=${{ vars.NEXT_PUBLIC_ENABLE_DEBUG || 'false' }}
             NEXT_PUBLIC_LOG_LEVEL=${{ vars.NEXT_PUBLIC_LOG_LEVEL || 'INFO' }}
+
+      # Argo CD watches k8s/apps/bidy/overlays/dev: changing the tag there is what
+      # triggers the rollout. Only k8s/** changes, which this workflow's path filter
+      # ignores, and GITHUB_TOKEN pushes don't start new workflow runs anyway.
+      - name: Bump image tag in overlay
+        run: |
+          yq -i '(.images[] | select(.name == "${{ steps.meta.outputs.image }}") | .newTag) = "${{ steps.meta.outputs.tag }}"' \
+            k8s/apps/bidy/overlays/dev/kustomization.yaml
+
+      - name: Commit and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add k8s/apps/bidy/overlays/dev/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "Tag already up to date"; exit 0
+          fi
+          git commit -m "chore(dev): bidy-fe -> ${{ steps.meta.outputs.tag }}"
+          # BE and FE pipelines can finish at the same time: rebase onto whatever landed first
+          git pull --rebase origin dev
+          git push origin HEAD:dev

@@ -1,0 +1,63 @@
+# Traefik for the kind cluster. kind maps host ports 80/443 to the control-plane
+# node container (k8s/cluster/kind-config.yaml). Cilium's hostPort did not carry
+# that traffic into the pod, so Traefik runs on the node's network namespace and
+# binds 80/443 directly.
+deployment:
+  replicas: 1
+
+# One pod per node can bind 80/443: replace the old pod first, never surge.
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 0
+
+hostNetwork: true
+
+nodeSelector:
+  ingress-ready: "true"
+
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+ports:
+  web:
+    port: 80
+    exposedPort: 80
+  websecure:
+    port: 443
+    exposedPort: 443
+
+# Binding ports < 1024 needs root or NET_BIND_SERVICE
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  runAsGroup: 0
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+    add: [NET_BIND_SERVICE]
+
+service:
+  type: ClusterIP
+
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+providers:
+  kubernetesIngress:
+    publishedService:
+      enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 300m
+    memory: 192Mi

@@ -1,0 +1,6 @@
+# Values currently applied to the cluster (`helm get values cilium -n kube-system`).
+# Install: helm upgrade --install cilium cilium/cilium -n kube-system -f k8s/platform/cilium/values.yaml
+# hostPort was enabled while debugging ingress; Traefik now uses hostNetwork, so
+# this is no longer needed and can be removed.
+hostPort:
+  enabled: true

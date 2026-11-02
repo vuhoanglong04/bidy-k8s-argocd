@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bidy-frontend
+  namespace: bidy-dev
+  labels:
+    app.kubernetes.io/name: bidy-frontend
+    app.kubernetes.io/part-of: bidy
+spec:
+  selector:
+    app.kubernetes.io/name: bidy-frontend
+  ports:
+    - name: http
+      port: 3001
+      targetPort: http
+---
+# NEXT_PUBLIC_* values are baked into the image at build time (see the CI
+# workflow build-args), so no runtime env is needed here.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bidy-frontend
+  namespace: bidy-dev
+  labels:
+    app.kubernetes.io/name: bidy-frontend
+    app.kubernetes.io/part-of: bidy
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bidy-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bidy-frontend
+        app.kubernetes.io/part-of: bidy
+    spec:
+      containers:
+        - name: frontend
+          image: longvulinhhoang/bidy-fe:dev
+          ports:
+            - name: http
+              containerPort: 3001
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
