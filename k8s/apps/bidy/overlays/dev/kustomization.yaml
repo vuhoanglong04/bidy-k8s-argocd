@@ -5,6 +5,6 @@ resources:
 # CI bumps these tags after every successful build on the dev branch.
 images:
   - name: longvulinhhoang/bidy-be
-    newTag: dev-009d4df
+    newTag: dev-6063a54
   - name: longvulinhhoang/bidy-fe
     newTag: dev-f385ba5
