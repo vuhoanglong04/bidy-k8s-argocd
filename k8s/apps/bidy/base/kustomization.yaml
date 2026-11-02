@@ -9,5 +9,5 @@ resources:
 - namespace.yaml
 - postgres.yaml
 - redis.yaml
-- secret.yaml
+- sealed-secret.yaml
 - worker.yaml

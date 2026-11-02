@@ -31,9 +31,8 @@ data:
   RESET_TOKEN_TTL_SECONDS: "900"
   BCRYPT_SALT_ROUNDS: "12"
 
-  # Object storage (Cloudflare R2). Placeholders: set real values per environment.
+  # Object storage (Cloudflare R2). R2_ENDPOINT and the access keys are in sealed-secret.yaml.
   BUCKET_NAME: bidy-dev
-  R2_ENDPOINT: https://your_account_id.r2.cloudflarestorage.com
 
   SEPAY_BANK_NAME: MBBank
   SEPAY_ACCOUNT_NUMBER: "1017588888"
