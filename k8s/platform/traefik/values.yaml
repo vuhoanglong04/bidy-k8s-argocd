@@ -53,6 +53,10 @@ providers:
   kubernetesIngress:
     publishedService:
       enabled: false
+    # hostNetwork has no LoadBalancer/Service address to publish; without a value here the
+    # Ingress status stays empty and Argo CD reports the app as Progressing forever.
+    ingressEndpoint:
+      ip: 127.0.0.1
 
 resources:
   requests:
