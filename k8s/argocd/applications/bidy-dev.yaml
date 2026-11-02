@@ -12,9 +12,17 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: bidy-dev
+  # volumeClaimTemplates are immutable and the API server fills in defaults
+  # (volumeMode, status), which Argo CD would otherwise report as a permanent diff.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[]?
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
