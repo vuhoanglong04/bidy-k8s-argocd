@@ -1,0 +1,20 @@
+# App-of-apps: apply this once (kubectl apply -f k8s/argocd/root.yaml) and Argo CD
+# creates every Application in k8s/argocd/applications from Git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:vuhoanglong04/bidy-k8s-argocd.git
+    targetRevision: dev
+    path: k8s/argocd/applications
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
