@@ -89,8 +89,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'http://bidy.localtest.me/api' }}
-            NEXT_PUBLIC_WS_URL=${{ vars.NEXT_PUBLIC_WS_URL || 'ws://bidy.localtest.me/api' }}
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'http://bidy.localtest.me' }}
+            NEXT_PUBLIC_WS_URL=${{ vars.NEXT_PUBLIC_WS_URL || 'http://bidy.localtest.me' }}
             NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'http://bidy.localtest.me' }}
             NEXT_PUBLIC_APP_NAME=${{ vars.NEXT_PUBLIC_APP_NAME || 'Bidy' }}
             NEXT_PUBLIC_APP_DESCRIPTION=${{ vars.NEXT_PUBLIC_APP_DESCRIPTION || 'Vietnamese Online Auction Platform' }}
@@ -148,8 +148,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'http://bidy.localtest.me/api' }}
-            NEXT_PUBLIC_WS_URL=${{ vars.NEXT_PUBLIC_WS_URL || 'ws://bidy.localtest.me/api' }}
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'http://bidy.localtest.me' }}
+            NEXT_PUBLIC_WS_URL=${{ vars.NEXT_PUBLIC_WS_URL || 'http://bidy.localtest.me' }}
             NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'http://bidy.localtest.me' }}
             NEXT_PUBLIC_APP_NAME=${{ vars.NEXT_PUBLIC_APP_NAME || 'Bidy' }}
             NEXT_PUBLIC_APP_DESCRIPTION=${{ vars.NEXT_PUBLIC_APP_DESCRIPTION || 'Vietnamese Online Auction Platform' }}
