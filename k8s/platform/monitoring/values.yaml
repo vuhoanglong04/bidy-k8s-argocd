@@ -42,6 +42,12 @@ grafana:
     failureThreshold: 30
 
 prometheusOperator:
+  # The webhook's CA is injected by a Helm hook Job; under Argo CD that job is easy to miss and
+  # leaves an empty caBundle, which then rejects every Prometheus/PrometheusRule write.
+  admissionWebhooks:
+    enabled: false
+  tls:
+    enabled: false
   resources:
     requests: { cpu: 25m, memory: 64Mi }
     limits: { cpu: 200m, memory: 192Mi }
