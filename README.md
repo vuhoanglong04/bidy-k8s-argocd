@@ -14,6 +14,36 @@ GitHub Actions builds and scans the images, **Argo CD** pulls the desired state 
 | Security | default-deny **NetworkPolicy**, non-root pods, read-only root filesystem, dropped capabilities, Trivy gate |
 | Observability | **kube-prometheus-stack** (Prometheus, Grafana, alert rules for the app and the backups) |
 
+## Features
+
+**Delivery (CI/CD and GitOps)**
+- Separate GitHub Actions pipelines for backend and frontend, triggered only by changes in their folder.
+- Lint, tests (frontend with coverage artifact), multi-arch Docker build with layer cache.
+- Trivy scan on every build: JSON report as an artifact, pipeline stops on HIGH/CRITICAL findings.
+- Images pushed to Docker Hub as `dev-<sha>`; the pipeline commits the new tag to the repo.
+- Argo CD app-of-apps: one `root` application creates every other application from git, with automated sync, prune and self-heal.
+- Database migrations and seed run as an Argo CD sync hook before each rollout.
+
+**Platform**
+- 3-node kind cluster with per-node CPU/memory caps, rebuilt with one command (`bootstrap.sh`).
+- Cilium as CNI (enforces NetworkPolicy), Traefik as ingress, metrics-server for HPA.
+- Sealed Secrets: secrets are committed encrypted, decrypted only inside the cluster.
+
+**Application runtime**
+- Frontend and backend scale 2 to 4 replicas on CPU (HPA); PodDisruptionBudgets keep at least one running during drains and rollouts.
+- Dedicated single-replica worker owns the cron jobs, so they never run twice when the API scales.
+- Postgres and Redis as StatefulSets with persistent volumes; liveness and readiness probes everywhere.
+- Resource requests and limits on every workload.
+
+**Security**
+- Default-deny NetworkPolicy with explicit allow rules (Traefik to app, app to Postgres/Redis/DNS/HTTPS, backup to Postgres/R2).
+- All pods run as non-root with a read-only root filesystem, no privilege escalation, all capabilities dropped, seccomp `RuntimeDefault`.
+- Vulnerability gate in CI and trimmed runtime images (no npm/corepack).
+
+**Reliability and operations**
+- Daily Postgres backup to Cloudflare R2, 7-day retention, restore procedure tested end to end.
+- Prometheus and Grafana with ready-made Kubernetes dashboards, plus alerts for crash-looping pods, unready pods, unavailable deployments, HPA at max, and failed or missing backups.
+
 ## Architecture
 
 ```mermaid
@@ -145,6 +175,17 @@ serious finding. Back up Postgres right before experiment 2.
 | 4 | Delete the Traefik pod | Site is down for a few seconds (single replica, `maxSurge: 0`) | Known weak spot, measure it |
 | 5 | Drain one worker node | No errors, PDB keeps at least one FE/BE pod; `uncordon` afterwards | PDB, rescheduling |
 | 6 | Delete the worker (cron) pod | Cron paused while it is recreated (`Recreate`), then resumes | Single point of failure |
+
+### Move secrets to HashiCorp Vault
+
+Replace Sealed Secrets with HashiCorp Vault so secrets are stored and rotated outside git.
+Rough plan:
+- Deploy Vault (Helm chart, as an Argo CD application) and initialise/unseal it; decide on dev mode vs. persistent storage.
+- Enable the Kubernetes auth method and a policy/role scoped to the `bidy-dev` service accounts.
+- Load the values from `bidy-secret` into a KV v2 path.
+- Sync them into the cluster with External Secrets Operator (or Vault Agent Injector / CSI provider), keeping the Secret name `bidy-secret` so the Deployments do not change.
+- Remove `sealed-secret.yaml`, the Sealed Secrets application, and the sealed-key export/restore step from `bootstrap.sh`; add a Vault bootstrap step instead.
+- Document how to rotate a secret, and add a NetworkPolicy rule for the pods that talk to Vault.
 
 ### Other open items
 
