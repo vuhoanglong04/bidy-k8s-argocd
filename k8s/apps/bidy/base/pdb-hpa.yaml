@@ -33,7 +33,8 @@ spec:
   maxReplicas: 4
   metrics:
     - type: Resource
-      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+      resource:
+        { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 120
@@ -49,7 +50,8 @@ spec:
   maxReplicas: 4
   metrics:
     - type: Resource
-      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+      resource:
+        { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 120

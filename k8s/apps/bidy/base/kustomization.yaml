@@ -10,6 +10,7 @@ resources:
 - network-policy.yaml
 - pdb-hpa.yaml
 - postgres.yaml
+- postgres-backup.yaml
 - redis.yaml
 - sealed-secret.yaml
 - worker.yaml
