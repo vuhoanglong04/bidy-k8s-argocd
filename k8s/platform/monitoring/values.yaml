@@ -1,0 +1,49 @@
+# kube-prometheus-stack sized for a 12 GB kind cluster. Grafana: http://grafana.localtest.me
+# (admin password: kubectl -n monitoring get secret monitoring-grafana -o jsonpath='{.data.admin-password}' | base64 -d)
+fullnameOverride: monitoring
+
+alertmanager:
+  enabled: false # no receiver to notify on a local cluster; alerts are visible in Prometheus/Grafana
+
+# kind runs these on the control-plane bound to localhost, so scraping them only produces false alerts.
+kubeEtcd: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeProxy: { enabled: false } # Cilium replaces kube-proxy
+
+prometheus:
+  prometheusSpec:
+    retention: 3d
+    # pick up ServiceMonitors/PodMonitors/PrometheusRules from any namespace, not just this release
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    resources:
+      requests: { cpu: 100m, memory: 400Mi }
+      limits: { cpu: 700m, memory: 900Mi }
+
+grafana:
+  defaultDashboardsTimezone: Asia/Ho_Chi_Minh
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts: [grafana.localtest.me]
+    path: /
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 300m, memory: 320Mi }
+
+prometheusOperator:
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 192Mi }
+
+kube-state-metrics:
+  resources:
+    requests: { cpu: 25m, memory: 48Mi }
+    limits: { cpu: 150m, memory: 128Mi }
+
+prometheus-node-exporter:
+  resources:
+    requests: { cpu: 10m, memory: 24Mi }
+    limits: { cpu: 100m, memory: 64Mi }
