@@ -27,6 +27,10 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: bidy-backend
   namespace: bidy-dev
+  annotations:
+    # last wave: on a cold cluster metrics-server is still starting, and an unhealthy HPA
+    # must not hold back the Deployments
+    argocd.argoproj.io/sync-wave: "4"
 spec:
   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: bidy-backend }
   minReplicas: 2
@@ -44,6 +48,10 @@ kind: HorizontalPodAutoscaler
 metadata:
   name: bidy-frontend
   namespace: bidy-dev
+  annotations:
+    # last wave: on a cold cluster metrics-server is still starting, and an unhealthy HPA
+    # must not hold back the Deployments
+    argocd.argoproj.io/sync-wave: "4"
 spec:
   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: bidy-frontend }
   minReplicas: 2

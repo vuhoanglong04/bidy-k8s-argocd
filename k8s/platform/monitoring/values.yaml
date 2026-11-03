@@ -29,9 +29,17 @@ grafana:
     ingressClassName: traefik
     hosts: [grafana.localtest.me]
     path: /
+  # Grafana needs a lot of CPU while it initialises (about 2 min at 300m); a low limit makes the
+  # default liveness probe kill it before it ever listens.
   resources:
-    requests: { cpu: 50m, memory: 128Mi }
-    limits: { cpu: 300m, memory: 320Mi }
+    requests: { cpu: 100m, memory: 160Mi }
+    limits: { cpu: 1000m, memory: 512Mi }
+  livenessProbe:
+    httpGet: { path: /api/health, port: grafana }
+    initialDelaySeconds: 90
+    timeoutSeconds: 10
+    periodSeconds: 10
+    failureThreshold: 30
 
 prometheusOperator:
   resources:
@@ -44,6 +52,8 @@ kube-state-metrics:
     limits: { cpu: 150m, memory: 128Mi }
 
 prometheus-node-exporter:
+  tolerations:
+    - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
   resources:
     requests: { cpu: 10m, memory: 24Mi }
     limits: { cpu: 100m, memory: 64Mi }
