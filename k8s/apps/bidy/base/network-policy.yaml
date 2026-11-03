@@ -86,7 +86,8 @@ spec:
             matchExpressions:
               - key: app.kubernetes.io/name
                 operator: In
-                values: [bidy-backend, bidy-worker, bidy-migrate, postgres-backup]
+                values:
+                  [bidy-backend, bidy-worker, bidy-migrate, postgres-backup]
       ports:
         - { protocol: TCP, port: 5432 }
 ---

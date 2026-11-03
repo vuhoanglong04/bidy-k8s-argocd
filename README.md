@@ -187,6 +187,16 @@ Rough plan:
 - Remove `sealed-secret.yaml`, the Sealed Secrets application, and the sealed-key export/restore step from `bootstrap.sh`; add a Vault bootstrap step instead.
 - Document how to rotate a secret, and add a NetworkPolicy rule for the pods that talk to Vault.
 
+### Multiple environments
+
+Today only `dev` exists. Add staging and prod from the same manifests:
+- Add `overlays/staging` and `overlays/prod` next to `overlays/dev` (own namespace, hostnames, replica counts/HPA bounds, resource limits, image tags).
+- One Argo CD Application per environment, tracking its own branch or path; consider Argo CD `ApplicationSet` to generate them.
+- Promotion flow: dev (auto) -> staging -> prod (manual approval), driven by a tag/PR instead of the CI bot committing straight to prod.
+- GitHub Actions: environment-specific workflows or a matrix, with GitHub Environments (`staging`, `prod`) holding their own variables, secrets and required reviewers.
+- Separate secrets, database and R2 bucket per environment; extend the backup CronJob and alert rules accordingly.
+- Decide where each environment runs (extra kind namespace/cluster locally, or a real cluster for prod).
+
 ### Other open items
 
 - Re-run the HPA load test for the backend with the rate limiter relaxed.
