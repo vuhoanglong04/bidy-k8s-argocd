@@ -17,7 +17,12 @@ spec:
           annotations:
             summary: "{{ $labels.pod }} restarted {{ $value | printf \"%.0f\" }} times in 10m"
         - alert: BidyPodNotReady
-          expr: sum by (pod) (kube_pod_status_ready{namespace="bidy-dev", condition="false"}) > 0
+          # only Running pods: Completed Job pods (migrate, backup) are never Ready by design
+          expr: |
+            sum by (pod) (
+              kube_pod_status_ready{namespace="bidy-dev", condition="false"}
+              and on (namespace, pod) kube_pod_status_phase{namespace="bidy-dev", phase="Running"} == 1
+            ) > 0
           for: 5m
           labels: { severity: warning }
           annotations:
