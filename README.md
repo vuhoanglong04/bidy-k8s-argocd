@@ -1,7 +1,132 @@
-# Bidy on Kubernetes (kind + Argo CD)
+# Bidy on Kubernetes: GitOps on a local kind cluster
 
-Bidy auction platform (`bidy-be`, `bidy-fe`) on a local kind cluster. CI on GitHub Actions
-(build, test, Trivy, push to Docker Hub), CD with Argo CD (GitOps), Sealed Secrets, Traefik, Cilium.
+An online auction platform (Node/TypeScript API + cron worker, Next.js frontend, Postgres, Redis,
+Cloudflare R2) shipped to a 3-node **kind** cluster with a full CI/CD and GitOps pipeline:
+GitHub Actions builds and scans the images, **Argo CD** pulls the desired state from this repo.
+
+| | |
+|---|---|
+| CI | GitHub Actions: lint, test, Docker build, **Trivy** scan (fails on HIGH/CRITICAL), multi-arch push to Docker Hub |
+| CD | **Argo CD** app-of-apps, automated sync with prune and self-heal; CI commits the new image tag, Argo rolls it out |
+| Cluster | kind (1 control-plane + 2 workers), **Cilium** CNI, **Traefik** ingress |
+| Secrets | **Sealed Secrets**: encrypted values live in git, only the cluster can decrypt them |
+| Resilience | HPA, PodDisruptionBudgets, probes, daily Postgres backup to R2 with a tested restore |
+| Security | default-deny **NetworkPolicy**, non-root pods, read-only root filesystem, dropped capabilities, Trivy gate |
+| Observability | **kube-prometheus-stack** (Prometheus, Grafana, alert rules for the app and the backups) |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  dev([git push to dev]) --> gha
+
+  subgraph gha[GitHub Actions]
+    direction TB
+    t[lint + test] --> b[build image] --> s{Trivy scan<br/>HIGH/CRITICAL?}
+    s -- pass --> p[push multi-arch<br/>to Docker Hub] --> bump[commit new tag to<br/>k8s overlay]
+    s -- fail --> x[pipeline stops]
+  end
+
+  bump --> repo[(this repo<br/>branch dev)]
+  repo -. polled .-> argo
+
+  subgraph kind[kind cluster]
+    direction TB
+    argo[Argo CD] --> apps
+    subgraph apps[ns bidy-dev]
+      fe[frontend x2-4<br/>HPA]
+      be[backend x2-4<br/>HPA]
+      wk[worker x1<br/>cron]
+      pg[(Postgres)]
+      rd[(Redis)]
+      bk[[backup CronJob]]
+    end
+    tr[Traefik<br/>hostNetwork :80/:443] --> fe
+    tr --> be
+    be --> pg
+    be --> rd
+    wk --> pg
+    bk --> pg
+    prom[Prometheus + Grafana] -. scrapes .-> apps
+  end
+
+  user([browser]) --> tr
+  be --> r2[(Cloudflare R2)]
+  bk --> r2
+```
+
+**Delivery flow:** a push to `dev` runs the pipeline for the changed app. After the image passes the
+Trivy gate and is pushed, the workflow edits the image tag in
+[`k8s/apps/bidy/overlays/dev/kustomization.yaml`](k8s/apps/bidy/overlays/dev/kustomization.yaml)
+and commits it back. Argo CD sees that commit, runs the migration hook, and rolls the
+Deployments. Git is the only source of truth; nothing is applied from a laptop after bootstrap.
+
+## Repository layout
+
+```
+.github/workflows/   cicd-dev-be.yml, cicd-dev-fe.yml (path-filtered, environment: dev)
+bidy-be/  bidy-fe/   application code and Dockerfiles
+k8s/
+  cluster/           kind config, bootstrap.sh, node limits, sealed-key export
+  platform/          Helm values: cilium, traefik, sealed-secrets, metrics-server, monitoring
+  apps/bidy/         Kustomize base + overlays/dev (manifests for the app)
+  argocd/            root.yaml and applications/ (one Argo CD Application per component)
+  docs/              runbooks (restore-postgres.md)
+```
+
+## Run it
+
+Needs: Docker (about 12 GB for the VM), `kind`, `kubectl`, `helm`, and an SSH key that can read this repo.
+
+```bash
+./k8s/cluster/bootstrap.sh
+```
+
+The script creates the cluster, caps node resources, installs Cilium and Argo CD, registers the
+repo, and applies the root app. Argo CD then installs everything else (the first sync takes a few
+minutes because of image pulls).
+
+| What | Where |
+|---|---|
+| App | http://bidy.localtest.me |
+| Grafana | http://grafana.localtest.me |
+| Argo CD | `kubectl -n argocd port-forward svc/argocd-server 8080:443` |
+
+`*.localtest.me` resolves to 127.0.0.1 and kind maps host ports 80/443 to the control-plane node,
+so no `/etc/hosts` edits are needed.
+
+**Rebuilding the cluster and Sealed Secrets:** the encrypted secret in git can only be decrypted
+with the controller's private key. Save it once with `./k8s/cluster/export-sealed-key.sh` (writes
+outside the repo); `bootstrap.sh` restores it on the next rebuild. Without it you must re-seal the secret.
+
+## Design notes
+
+- **Traefik uses `hostNetwork`.** Cilium's `hostPort` did not forward kind's host ports into the pod,
+  so Traefik binds 80/443 on the control-plane node directly. Consequences: one replica, a rollout
+  strategy with `maxSurge: 0`, a static `ingressEndpoint` so Argo CD sees the Ingress as healthy,
+  and a `CiliumNetworkPolicy` (not a plain NetworkPolicy) to let its traffic reach the pods.
+- **NetworkPolicy is default-deny** in `bidy-dev`. Allowed: Traefik to frontend/backend, backend and
+  worker to Postgres, Redis, DNS and external HTTPS/SMTP, backup job to Postgres and R2.
+- **One cron owner.** The cron jobs run in a dedicated single-replica `worker` Deployment with
+  `Recreate`; the scalable API Deployment runs with `ENABLE_CRON=false`.
+- **Migrations as an Argo hook.** A `Sync` hook Job runs migrations and the seed before the app
+  rolls out. The seed is non-fatal because it uploads fixtures to R2.
+- **HPA owns replicas.** Replica counts are not in git, and Argo ignores `/spec/replicas`.
+  HPAs sync in the last wave so a cold cluster does not block the Deployments while metrics-server starts.
+- **`NEXT_PUBLIC_*` are baked at build time**, so they come from CI build args, not cluster config.
+- **Faster frontend builds.** The Dockerfile builds on the runner's native arch and only fetches the
+  per-arch `sharp` binary for the target, avoiding the slow emulated Next.js build.
+- **Backups.** A CronJob dumps Postgres (`pg_dump -Fc`) to R2 daily and keeps 7 days.
+  The restore procedure is verified end to end: [`k8s/docs/restore-postgres.md`](k8s/docs/restore-postgres.md).
+
+## Known limitations
+
+- Single Postgres and Redis instances, no HA. Redis is not backed up.
+- Traefik has one replica, so a node or pod loss means a short outage.
+- The backend rate limiter (300 requests / 15 min per IP) blocks load tests from one machine.
+- `bidy-be/.env` is committed with real credentials for learning purposes. Replace it with dummy
+  values or rotate the keys before making this repository public.
+- Backend lint is non-blocking until `@typescript-eslint` is set up for TypeScript 7.
 
 ## TODO
 
@@ -21,14 +146,8 @@ serious finding. Back up Postgres right before experiment 2.
 | 5 | Drain one worker node | No errors, PDB keeps at least one FE/BE pod; `uncordon` afterwards | PDB, rescheduling |
 | 6 | Delete the worker (cron) pod | Cron paused while it is recreated (`Recreate`), then resumes | Single point of failure |
 
-Notes: the backend rate limiter (300 requests / 15 min per IP) blocks heavy loops, so use the
-frontend page or `/health`, or raise the limit on dev first.
-
 ### Other open items
 
-- Monitoring: Prometheus, Grafana, optionally Loki (keep resources small, Docker VM is 12 GB).
 - Re-run the HPA load test for the backend with the rate limiter relaxed.
-- `bootstrap.sh` to rebuild everything with one command; architecture diagram, GIF of the
-  push -> Actions -> tag bump -> Argo rollout flow, short ADRs.
-- Replace the committed `bidy-be/.env` (real credentials) with dummy values, or rotate the keys,
-  before the repo goes public.
+- Loki for logs; a record of the push -> Actions -> tag bump -> Argo rollout flow as a GIF.
+- Short ADRs for the main decisions (kind, hostNetwork, Sealed Secrets).
