@@ -69,6 +69,9 @@ spec:
                 - -c
                 - |
                   set -e
+                  # bidy-secret's R2_ENDPOINT ends with /<bucket> (the app's SDK wants that);
+                  # rclone needs the bare host or objects land under <bucket>/<bucket>/.
+                  export RCLONE_CONFIG_R2_ENDPOINT=$(echo "$R2_ENDPOINT" | sed -E 's#(https://[^/]+).*#\1#')
                   dest="r2:${BUCKET_NAME}/backups/postgres"
                   name="bidy_db-$(date -u +%Y%m%dT%H%M%SZ).pgdump"
                   rclone copyto /backup/dump.pgdump "$dest/$name"
@@ -78,7 +81,7 @@ spec:
                 - { name: HOME, value: /tmp }
                 - { name: RCLONE_CONFIG_R2_TYPE, value: s3 }
                 - { name: RCLONE_CONFIG_R2_PROVIDER, value: Cloudflare }
-                - name: RCLONE_CONFIG_R2_ENDPOINT
+                - name: R2_ENDPOINT
                   valueFrom:
                     secretKeyRef: { name: bidy-secret, key: R2_ENDPOINT }
                 - name: RCLONE_CONFIG_R2_ACCESS_KEY_ID
