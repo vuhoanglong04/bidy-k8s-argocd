@@ -52,6 +52,10 @@ kube-state-metrics:
     limits: { cpu: 150m, memory: 128Mi }
 
 prometheus-node-exporter:
+  # Traefik is hostNetwork and already listens on 9100 (its metrics port) on the control-plane node.
+  service:
+    port: 9101
+    targetPort: 9101
   tolerations:
     - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
   resources:

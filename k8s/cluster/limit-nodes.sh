@@ -5,7 +5,7 @@ set -euo pipefail
 
 CLUSTER="${CLUSTER:-bidy}"
 
-CP_CPUS="${CP_CPUS:-2}";         CP_MEM="${CP_MEM:-2g}"
+CP_CPUS="${CP_CPUS:-3}";         CP_MEM="${CP_MEM:-3g}"
 WORKER_CPUS="${WORKER_CPUS:-2}"; WORKER_MEM="${WORKER_MEM:-3g}"
 
 limit() { # name cpus mem
