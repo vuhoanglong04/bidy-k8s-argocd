@@ -45,6 +45,20 @@ spec:
         runAsGroup: 999
         fsGroup: 999
         seccompProfile: { type: RuntimeDefault }
+      # Volumes written by an earlier root-run pod keep root-owned 0600 files; hand them to redis.
+      initContainers:
+        - name: fix-data-perms
+          image: redis:7-alpine
+          command: ["sh", "-c", "chown -R 999:999 /data"]
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL], add: [CHOWN, DAC_OVERRIDE, FOWNER] }
+          volumeMounts:
+            - name: data
+              mountPath: /data
       containers:
         - name: redis
           image: redis:7-alpine
