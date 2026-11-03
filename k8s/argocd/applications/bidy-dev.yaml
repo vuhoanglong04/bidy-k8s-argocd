@@ -19,6 +19,11 @@ spec:
       kind: StatefulSet
       jqPathExpressions:
         - .spec.volumeClaimTemplates[]?
+    # The HPA owns replicas for the API and frontend.
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
   syncPolicy:
     automated:
       prune: true

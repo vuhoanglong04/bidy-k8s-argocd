@@ -27,7 +27,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
-  replicas: 2
   selector:
     matchLabels:
       app.kubernetes.io/name: bidy-backend
@@ -37,6 +36,11 @@ spec:
         app.kubernetes.io/name: bidy-backend
         app.kubernetes.io/part-of: bidy
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: backend
           image: longvulinhhoang/bidy-be:dev
@@ -72,3 +76,12 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}

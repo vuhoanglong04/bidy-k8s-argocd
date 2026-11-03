@@ -7,6 +7,8 @@ resources:
 - ingress.yaml
 - migrate-job.yaml
 - namespace.yaml
+- network-policy.yaml
+- pdb-hpa.yaml
 - postgres.yaml
 - redis.yaml
 - sealed-secret.yaml
