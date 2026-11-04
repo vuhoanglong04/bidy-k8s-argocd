@@ -7,4 +7,4 @@ images:
   - name: longvulinhhoang/bidy-be
     newTag: dev-6063a54
   - name: longvulinhhoang/bidy-fe
-    newTag: dev-6063a54
+    newTag: dev-0b2db61
