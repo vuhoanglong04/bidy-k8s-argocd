@@ -1,0 +1,40 @@
+# HashiCorp Vault for the kind cluster: single standalone server, Raft storage on a PVC.
+# Vault starts sealed after every restart: unseal it with k8s/cluster/vault-bootstrap.sh.
+# TLS is off because traffic stays inside the cluster; turn it on before using a real cluster.
+global:
+  enabled: true
+
+server:
+  standalone:
+    enabled: true
+    config: |
+      ui = true
+
+      listener "tcp" {
+        tls_disable     = 1
+        address         = "[::]:8200"
+        cluster_address = "[::]:8201"
+      }
+
+      storage "raft" {
+        path = "/vault/data"
+      }
+
+  dataStorage:
+    enabled: true
+    size: 1Gi
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# External Secrets Operator pulls the values, so the sidecar injector is not needed.
+injector:
+  enabled: false
+
+ui:
+  enabled: true
