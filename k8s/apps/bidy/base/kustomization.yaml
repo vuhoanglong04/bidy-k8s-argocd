@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - backend.yaml
 - configmap.yaml
+- external-secret.yaml
 - frontend.yaml
 - ingress.yaml
 - migrate-job.yaml

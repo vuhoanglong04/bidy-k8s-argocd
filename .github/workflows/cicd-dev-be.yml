@@ -25,11 +25,23 @@ jobs:
   ci:
     name: Lint & test
     runs-on: ubuntu-latest
+    # The test env vars below are stored in the dev Environment; without this the job cannot read them.
+    environment: dev
     defaults:
       run:
         working-directory: bidy-be
     env:
       NODE_ENV: test
+      # The app validates these at import time (wallet.config.ts, auth.service.ts) and
+      # presigns URLs against an R2 bucket. Set them in the dev Environment (Settings >
+      # Environments > dev) with throwaway test values, not the real Vault ones.
+      PLATFORM_WALLET_ID: ${{ vars.CI_PLATFORM_WALLET_ID }}
+      JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
+      JWT_REFRESH_SECRET: ${{ secrets.CI_JWT_REFRESH_SECRET }}
+      BUCKET_NAME: ${{ vars.CI_BUCKET_NAME }}
+      R2_ENDPOINT: ${{ vars.CI_R2_ENDPOINT }}
+      ACCESS_KEY_ID: ${{ secrets.CI_ACCESS_KEY_ID }}
+      SECRET_ACCESS_KEY: ${{ secrets.CI_SECRET_ACCESS_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,7 +57,8 @@ jobs:
       - run: npm run lint
         continue-on-error: true
       # src/tests/run-checks.ts spawns every *.check.ts in its own tsx process.
-      # .env is committed to the repo, so dotenv picks it up automatically.
+      # No .env in the repo: the job-level env above supplies what the checks need,
+      # and the DB-backed checks print SKIP when no Postgres is reachable.
       - run: npm test
 
   cd:
