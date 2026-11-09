@@ -9,7 +9,7 @@ GitHub Actions builds and scans the images, **Argo CD** pulls the desired state 
 | CI | GitHub Actions: lint, test, Docker build, **Trivy** scan (fails on HIGH/CRITICAL), multi-arch push to Docker Hub |
 | CD | **Argo CD** app-of-apps, automated sync with prune and self-heal; CI commits the new image tag, Argo rolls it out |
 | Cluster | kind (1 control-plane + 2 workers), **Cilium** CNI, **Traefik** ingress |
-| Secrets | **Sealed Secrets**: encrypted values live in git, only the cluster can decrypt them |
+| Secrets | **HashiCorp Vault** + **External Secrets Operator**: values live in Vault, never in git; ESO syncs them into the `bidy-secret` Secret |
 | Resilience | HPA, PodDisruptionBudgets, probes, daily Postgres backup to R2 with a tested restore |
 | Security | default-deny **NetworkPolicy**, non-root pods, read-only root filesystem, dropped capabilities, Trivy gate |
 | Observability | **kube-prometheus-stack** (Prometheus, Grafana, alert rules for the app and the backups) |
@@ -27,7 +27,7 @@ GitHub Actions builds and scans the images, **Argo CD** pulls the desired state 
 **Platform**
 - 3-node kind cluster with per-node CPU/memory caps, rebuilt with one command (`bootstrap.sh`).
 - Cilium as CNI (enforces NetworkPolicy), Traefik as ingress, metrics-server for HPA.
-- Sealed Secrets: secrets are committed encrypted, decrypted only inside the cluster.
+- Vault (Raft storage on a PVC) and External Secrets Operator: secrets are stored outside git and synced into the cluster.
 
 **Application runtime**
 - Frontend and backend scale 2 to 4 replicas on CPU (HPA); PodDisruptionBudgets keep at least one running during drains and rollouts.
@@ -97,8 +97,8 @@ Deployments. Git is the only source of truth; nothing is applied from a laptop a
 .github/workflows/   cicd-dev-be.yml, cicd-dev-fe.yml (path-filtered, environment: dev)
 bidy-be/  bidy-fe/   application code and Dockerfiles
 k8s/
-  cluster/           kind config, bootstrap.sh, node limits, sealed-key export
-  platform/          Helm values: cilium, traefik, sealed-secrets, metrics-server, monitoring
+  cluster/           kind config, bootstrap.sh, vault-bootstrap.sh, node limits
+  platform/          Helm values: cilium, traefik, vault, external-secrets, metrics-server, monitoring
   apps/bidy/         Kustomize base + overlays/dev (manifests for the app)
   argocd/            root.yaml and applications/ (one Argo CD Application per component)
   docs/              runbooks (restore-postgres.md)
@@ -125,9 +125,21 @@ minutes because of image pulls).
 `*.localtest.me` resolves to 127.0.0.1 and kind maps host ports 80/443 to the control-plane node,
 so no `/etc/hosts` edits are needed.
 
-**Rebuilding the cluster and Sealed Secrets:** the encrypted secret in git can only be decrypted
-with the controller's private key. Save it once with `./k8s/cluster/export-sealed-key.sh` (writes
-outside the repo); `bootstrap.sh` restores it on the next rebuild. Without it you must re-seal the secret.
+**Rebuilding the cluster and Vault:** Vault's data lives on a PVC of the kind cluster, so a rebuilt
+cluster starts with an empty Vault. `bootstrap.sh` runs `k8s/cluster/vault-bootstrap.sh`, which
+initialises and unseals Vault, recreates the policy and Kubernetes auth role, and loads
+`secret/bidy/dev` from `~/.bidy/bidy-secret.json` if that file exists. Keep these two files outside
+the repo and backed up: `~/.bidy/vault-init.json` (unseal key and root token, written on first init)
+and `~/.bidy/bidy-secret.json` (the secret values). Vault starts sealed after every pod restart: run
+`./k8s/cluster/vault-bootstrap.sh` again to unseal it.
+
+**Rotating a secret:**
+```bash
+kubectl -n vault exec -i vault-0 -- env VAULT_TOKEN=<root-token> vault kv patch secret/bidy/dev JWT_SECRET=<new>
+# ESO updates bidy-secret within a minute; pods read env vars only at start, so restart them
+kubectl -n bidy-dev rollout restart deploy/bidy-backend deploy/bidy-worker
+```
+`POSTGRES_PASSWORD` is also stored inside Postgres: change it there (`ALTER USER`) as well.
 
 ## Design notes
 
@@ -176,16 +188,14 @@ serious finding. Back up Postgres right before experiment 2.
 | 5 | Drain one worker node | No errors, PDB keeps at least one FE/BE pod; `uncordon` afterwards | PDB, rescheduling |
 | 6 | Delete the worker (cron) pod | Cron paused while it is recreated (`Recreate`), then resumes | Single point of failure |
 
-### Move secrets to HashiCorp Vault
+### Vault follow-ups
 
-Replace Sealed Secrets with HashiCorp Vault so secrets are stored and rotated outside git.
-Rough plan:
-- Deploy Vault (Helm chart, as an Argo CD application) and initialise/unseal it; decide on dev mode vs. persistent storage.
-- Enable the Kubernetes auth method and a policy/role scoped to the `bidy-dev` service accounts.
-- Load the values from `bidy-secret` into a KV v2 path.
-- Sync them into the cluster with External Secrets Operator (or Vault Agent Injector / CSI provider), keeping the Secret name `bidy-secret` so the Deployments do not change.
-- Remove `sealed-secret.yaml`, the Sealed Secrets application, and the sealed-key export/restore step from `bootstrap.sh`; add a Vault bootstrap step instead.
-- Document how to rotate a secret, and add a NetworkPolicy rule for the pods that talk to Vault.
+Secrets now come from Vault through External Secrets Operator. Still open:
+- Turn on TLS for the Vault listener and add an `audience` to the Kubernetes auth role.
+- Auto-unseal (transit or a cloud KMS) so a Vault restart does not need a manual unseal.
+- Raft snapshots to R2, so losing the PVC does not lose every secret.
+- Stakater Reloader (or similar) so pods restart when a secret changes.
+- One Vault path, policy and role per environment when staging/prod exist.
 
 ### Multiple environments
 
@@ -201,4 +211,4 @@ Today only `dev` exists. Add staging and prod from the same manifests:
 
 - Re-run the HPA load test for the backend with the rate limiter relaxed.
 - Loki for logs; a record of the push -> Actions -> tag bump -> Argo rollout flow as a GIF.
-- Short ADRs for the main decisions (kind, hostNetwork, Sealed Secrets).
+- Short ADRs for the main decisions (kind, hostNetwork, Vault with External Secrets).

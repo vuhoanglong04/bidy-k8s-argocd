@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Rebuild the whole platform from scratch with one command:
-#   kind cluster -> node limits -> Cilium -> Argo CD -> (Sealed Secrets key) -> root app
-# Everything after the root app (Traefik, Sealed Secrets, metrics-server, monitoring, bidy-dev)
+#   kind cluster -> node limits -> Cilium -> Argo CD -> root app -> Vault init/unseal
+# Everything after the root app (Traefik, Vault, External Secrets, metrics-server, monitoring, bidy-dev)
 # is installed by Argo CD from this repository.
 #
 # Prerequisites: docker, kind, kubectl, helm.
 # Optional env:
 #   ARGOCD_REPO_KEY   SSH private key with read access to the repo   (default ~/.ssh/id_ed25519)
-#   SEALED_KEY_FILE   key saved by export-sealed-key.sh              (default ~/.bidy/sealed-secrets-key.yaml)
+#   SKIP_VAULT=1      do not init/unseal Vault (see vault-bootstrap.sh)
 #   SKIP_LIMITS=1     do not cap node CPU/memory
 set -euo pipefail
 
@@ -16,7 +16,6 @@ ARGOCD_VERSION="${ARGOCD_VERSION:-v3.5.6}"
 CILIUM_VERSION="${CILIUM_VERSION:-1.20.4}"
 REPO_URL="${REPO_URL:-git@github.com:vuhoanglong04/bidy-k8s-argocd.git}"
 ARGOCD_REPO_KEY="${ARGOCD_REPO_KEY:-$HOME/.ssh/id_ed25519}"
-SEALED_KEY_FILE="${SEALED_KEY_FILE:-$HOME/.bidy/sealed-secrets-key.yaml}"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K8S="$(dirname "$HERE")"
@@ -61,17 +60,13 @@ kubectl -n argocd create secret generic repo-bidy-k8s-argocd \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n argocd label secret repo-bidy-k8s-argocd argocd.argoproj.io/secret-type=repository --overwrite
 
-if [ -r "$SEALED_KEY_FILE" ]; then
-  step "Restoring the Sealed Secrets key from $SEALED_KEY_FILE"
-  kubectl apply -f "$SEALED_KEY_FILE"
-else
-  echo
-  echo "WARNING: $SEALED_KEY_FILE not found. The controller will generate a NEW key and"
-  echo "         bidy-secret will not decrypt; re-seal it (see k8s/apps/bidy/base/sealed-secret.yaml)."
-fi
-
 step "Root application (app-of-apps)"
 kubectl apply -f "$K8S/argocd/root.yaml"
+
+if [ -z "${SKIP_VAULT:-}" ]; then
+  step "Vault (init, unseal, load secrets)"
+  "$HERE/vault-bootstrap.sh"
+fi
 
 cat <<MSG
 

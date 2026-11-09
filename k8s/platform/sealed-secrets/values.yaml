@@ -1,9 +1,0 @@
-# kubeseal looks for a controller named sealed-secrets-controller in kube-system by default.
-fullnameOverride: sealed-secrets-controller
-resources:
-  requests:
-    cpu: 25m
-    memory: 32Mi
-  limits:
-    cpu: 200m
-    memory: 128Mi

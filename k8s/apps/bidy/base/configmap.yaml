@@ -1,4 +1,4 @@
-# Non-sensitive backend config. Sensitive values live in secret.yaml.
+# Non-sensitive backend config. Sensitive values live in Vault and reach the cluster through external-secret.yaml.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -31,7 +31,7 @@ data:
   RESET_TOKEN_TTL_SECONDS: "900"
   BCRYPT_SALT_ROUNDS: "12"
 
-  # Object storage (Cloudflare R2). R2_ENDPOINT and the access keys are in sealed-secret.yaml.
+  # Object storage (Cloudflare R2). R2_ENDPOINT and the access keys are in Vault (secret/bidy/dev).
   BUCKET_NAME: bidy-dev
 
   SEPAY_BANK_NAME: MBBank

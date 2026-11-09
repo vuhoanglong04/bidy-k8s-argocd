@@ -13,5 +13,4 @@ resources:
 - postgres.yaml
 - postgres-backup.yaml
 - redis.yaml
-- sealed-secret.yaml
 - worker.yaml
