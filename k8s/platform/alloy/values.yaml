@@ -9,6 +9,9 @@ alloy:
     content: |
       discovery.kubernetes "pods" {
         role = "pod"
+        namespaces {
+          names = ["bidy-dev"]
+        }
       }
       discovery.relabel "pods" {
         targets = discovery.kubernetes.pods.targets
