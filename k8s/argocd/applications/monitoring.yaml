@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 92.17.1
+      helm:
+        releaseName: monitoring
+        valueFiles:
+          - $values/k8s/platform/monitoring/values.yaml
+    - repoURL: git@github.com:vuhoanglong04/bidy-k8s-argocd.git
+      targetRevision: dev
+      ref: values
+    # PrometheusRule objects (need the operator's CRDs, so they sync after the chart)
+    - repoURL: git@github.com:vuhoanglong04/bidy-k8s-argocd.git
+      targetRevision: dev
+      path: k8s/platform/monitoring/extras
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true # the operator CRDs exceed the client-side annotation size limit
+    retry:
+      limit: 5
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }

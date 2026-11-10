@@ -7,7 +7,6 @@ dist/
 AGENTS.md
 CLAUDE.md
 claudedocs/Lagacy-db.png
-.env
 # antigravity rules
 .agents/rules/thisProjectMust
 build-output.log

@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bidy-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:vuhoanglong04/bidy-k8s-argocd.git
+    targetRevision: dev
+    path: k8s/apps/bidy/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bidy-dev
+  # volumeClaimTemplates are immutable and the API server fills in defaults
+  # (volumeMode, status), which Argo CD would otherwise report as a permanent diff.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[]?
+    # The HPA owns replicas for the API and frontend.
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }

@@ -1,0 +1,47 @@
+# Replaces bidy-be/nginx/nginx.conf. The backend's bare "/admin" router is left
+# unrouted on purpose: it collides with the frontend's own /admin pages.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bidy
+  namespace: bidy-dev
+  labels:
+    app.kubernetes.io/part-of: bidy
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: bidy.localtest.me
+      http:
+        paths:
+          - {
+              path: /api,
+              pathType: Prefix,
+              backend:
+                { service: { name: bidy-backend, port: { number: 8001 } } },
+            }
+          - {
+              path: /api-docs,
+              pathType: Prefix,
+              backend:
+                { service: { name: bidy-backend, port: { number: 8001 } } },
+            }
+          - {
+              path: /health,
+              pathType: Prefix,
+              backend:
+                { service: { name: bidy-backend, port: { number: 8001 } } },
+            }
+          - {
+              path: /socket.io,
+              pathType: Prefix,
+              backend:
+                { service: { name: bidy-backend, port: { number: 8001 } } },
+            }
+          - {
+              path: /,
+              pathType: Prefix,
+              backend:
+                { service: { name: bidy-frontend, port: { number: 3001 } } },
+            }

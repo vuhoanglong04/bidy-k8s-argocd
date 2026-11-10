@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" aria-labelledby="t d">
+  <title id="t">Bidy on Kubernetes architecture</title>
+  <desc id="d">A push to dev runs GitHub Actions, which pushes an image to Docker Hub and commits the new tag to git. Argo CD in the kind cluster applies the manifests. Vault and External Secrets feed the app; Prometheus, Alertmanager, Alloy, Loki and Grafana observe it; alerts go out by email.</desc>
+  <defs>
+    <style>
+      text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+      .bg { fill: #ffffff; }
+      .box { fill: #ffffff; stroke: #94a3b8; stroke-width: 1.5; }
+      .ext { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; }
+      .ns { fill: #eff6ff; stroke: #3b82f6; stroke-width: 1.5; }
+      .cl { fill: none; stroke: #3b82f6; stroke-width: 2; stroke-dasharray: 8 5; }
+      .sec { fill: #f0fdf4; stroke: #22c55e; stroke-width: 1.5; }
+      .obs { fill: #fffbeb; stroke: #f59e0b; stroke-width: 1.5; }
+      .t { font-size: 14px; font-weight: 600; fill: #0f172a; text-anchor: middle; }
+      .s { font-size: 12px; fill: #475569; text-anchor: middle; }
+      .h { font-size: 13px; font-weight: 700; fill: #334155; }
+      .l { font-size: 11px; fill: #64748b; }
+      .a { stroke: #475569; stroke-width: 1.6; fill: none; marker-end: url(#ah); }
+    </style>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1200" height="800"/>
+
+  <!-- delivery row -->
+  <rect class="ext" x="30" y="30" width="180" height="70" rx="8"/>
+  <text class="t" x="120" y="60">Developer</text><text class="s" x="120" y="80">git push to dev</text>
+  <rect class="box" x="270" y="30" width="360" height="70" rx="8"/>
+  <text class="t" x="450" y="60">GitHub Actions</text><text class="s" x="450" y="80">lint · test · build · Trivy scan</text>
+  <rect class="ext" x="700" y="30" width="180" height="70" rx="8"/>
+  <text class="t" x="790" y="60">Docker Hub</text><text class="s" x="790" y="80">multi-arch dev-&lt;sha&gt; images</text>
+  <path class="a" d="M210 65 H268"/>
+  <path class="a" d="M630 65 H698"/><text class="l" x="664" y="57" text-anchor="middle">push</text>
+
+  <rect class="box" x="270" y="160" width="360" height="60" rx="8"/>
+  <text class="t" x="450" y="186">This repo (branch dev)</text><text class="s" x="450" y="204">k8s manifests + image tag</text>
+  <path class="a" d="M450 100 V158"/><text class="l" x="462" y="134">commit new tag</text>
+
+  <rect class="ext" x="30" y="160" width="200" height="60" rx="8"/>
+  <text class="t" x="130" y="186">Browser</text><text class="s" x="130" y="204">bidy.localtest.me</text>
+
+  <path class="a" d="M790 100 V258"/><text class="l" x="802" y="186">pull images</text>
+
+  <!-- cluster -->
+  <rect class="cl" x="30" y="260" width="1000" height="420" rx="14"/>
+  <text class="h" x="46" y="668">kind cluster · 1 control-plane + 2 workers · Cilium CNI</text>
+
+  <rect class="box" x="60" y="300" width="230" height="60" rx="8"/>
+  <text class="t" x="175" y="326">Traefik ingress</text><text class="s" x="175" y="344">hostNetwork :80 / :443</text>
+  <path class="a" d="M130 220 V298"/>
+
+  <rect class="box" x="350" y="300" width="200" height="60" rx="8"/>
+  <text class="t" x="450" y="326">Argo CD</text><text class="s" x="450" y="344">app-of-apps · auto sync</text>
+  <path class="a" d="M450 220 V298"/><text class="l" x="462" y="246">polls git</text>
+
+  <!-- app namespace -->
+  <rect class="ns" x="60" y="400" width="500" height="190" rx="10"/>
+  <text class="h" x="76" y="422">namespace bidy-dev</text>
+  <path class="a" d="M130 360 V398"/><text class="l" x="142" y="384">routes to FE / BE</text>
+  <path class="a" d="M450 360 V398"/><text class="l" x="462" y="384">applies manifests</text>
+
+  <rect class="box" x="76" y="435" width="140" height="50" rx="8"/>
+  <text class="t" x="146" y="457">Frontend</text><text class="s" x="146" y="474">Next.js · HPA 2-4</text>
+  <rect class="box" x="230" y="435" width="140" height="50" rx="8"/>
+  <text class="t" x="300" y="457">Backend API</text><text class="s" x="300" y="474">Node/TS · HPA 2-4</text>
+  <rect class="box" x="384" y="435" width="160" height="50" rx="8"/>
+  <text class="t" x="464" y="457">Worker</text><text class="s" x="464" y="474">cron jobs · 1 replica</text>
+  <rect class="box" x="76" y="505" width="140" height="50" rx="8"/>
+  <text class="t" x="146" y="527">Postgres</text><text class="s" x="146" y="544">StatefulSet + PVC</text>
+  <rect class="box" x="230" y="505" width="140" height="50" rx="8"/>
+  <text class="t" x="300" y="527">Redis</text><text class="s" x="300" y="544">StatefulSet + PVC</text>
+  <rect class="box" x="384" y="505" width="160" height="50" rx="8"/>
+  <text class="t" x="464" y="527">Backup CronJob</text><text class="s" x="464" y="544">daily pg_dump</text>
+
+  <!-- secrets -->
+  <rect class="sec" x="600" y="300" width="400" height="100" rx="10"/>
+  <text class="h" x="616" y="322">Secrets</text>
+  <rect class="box" x="616" y="335" width="170" height="50" rx="8"/>
+  <text class="t" x="701" y="357">Vault</text><text class="s" x="701" y="374">values stay out of git</text>
+  <rect class="box" x="814" y="335" width="170" height="50" rx="8"/>
+  <text class="t" x="899" y="357">External Secrets</text><text class="s" x="899" y="374">syncs bidy-secret</text>
+  <path class="a" d="M786 360 H812"/>
+  <path class="a" d="M700 400 V420 H562"/><text class="l" x="640" y="414" text-anchor="middle">bidy-secret</text>
+
+  <!-- observability -->
+  <rect class="obs" x="600" y="440" width="400" height="225" rx="10"/>
+  <text class="h" x="616" y="461">Observability</text>
+  <rect class="box" x="616" y="475" width="170" height="50" rx="8"/>
+  <text class="t" x="701" y="497">Prometheus</text><text class="s" x="701" y="514">metrics + alert rules</text>
+  <rect class="box" x="814" y="475" width="170" height="50" rx="8"/>
+  <text class="t" x="899" y="497">Alertmanager</text><text class="s" x="899" y="514">routes alerts to email</text>
+  <path class="a" d="M786 500 H812"/>
+  <rect class="box" x="616" y="545" width="170" height="50" rx="8"/>
+  <text class="t" x="701" y="567">Alloy</text><text class="s" x="701" y="584">tails bidy-dev logs</text>
+  <rect class="box" x="814" y="545" width="170" height="50" rx="8"/>
+  <text class="t" x="899" y="567">Loki</text><text class="s" x="899" y="584">3-day log storage</text>
+  <path class="a" d="M786 570 H812"/>
+  <rect class="box" x="700" y="608" width="200" height="45" rx="8"/>
+  <text class="t" x="800" y="627">Grafana</text><text class="s" x="800" y="643">dashboards · Explore</text>
+  <path class="a" d="M562 500 H614"/><text class="l" x="589" y="494" text-anchor="middle">scrape</text>
+  <path class="a" d="M562 570 H614"/><text class="l" x="589" y="564" text-anchor="middle">logs</text>
+
+  <!-- outside the cluster -->
+  <rect class="ext" x="1070" y="475" width="110" height="50" rx="8"/>
+  <text class="t" x="1125" y="497">Gmail SMTP</text><text class="s" x="1125" y="514">app password</text>
+  <path class="a" d="M984 500 H1068"/>
+  <rect class="ext" x="1070" y="595" width="110" height="50" rx="8"/>
+  <text class="t" x="1125" y="617">Your inbox</text><text class="s" x="1125" y="634">alert emails</text>
+  <path class="a" d="M1125 525 V593"/><text class="l" x="1137" y="563">email</text>
+
+  <rect class="ext" x="330" y="720" width="260" height="50" rx="8"/>
+  <text class="t" x="460" y="742">Cloudflare R2</text><text class="s" x="460" y="759">uploads + Postgres backups</text>
+  <path class="a" d="M464 555 V718"/><text class="l" x="476" y="640">backups, uploads</text>
+</svg>

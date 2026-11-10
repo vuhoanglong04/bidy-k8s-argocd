@@ -38,7 +38,7 @@ export default function Footer() {
             <BrandLogo className="h-[34px] w-auto" />
           </Link>
           <p className="max-w-[280px] text-[13px] leading-relaxed text-footer-muted-foreground">
-            Nền tảng đấu giá trực tuyến chuyên nghiệp. Khám phá những món đồ độc bản và trải nghiệm đấu giá minh bạch, an toàn.
+            Nền tảng đấu giá trực tuyến chuyên nghiệp. Khám phá những món đồ độc bản và trải nghiệm đấu giá minh bạch, an toàn, nhanh chóng.
           </p>
         </div>
 

@@ -1,0 +1,60 @@
+# Alerts for the bidy-dev namespace (kube-state-metrics series).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: bidy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: bidy
+spec:
+  groups:
+    - name: bidy.rules
+      rules:
+        - alert: BidyBackendDown
+          # no backend pod is serving traffic (covers crashes, failed rollouts and a missing Deployment)
+          expr: (sum(kube_deployment_status_replicas_available{namespace="bidy-dev", deployment="bidy-backend"}) or vector(0)) == 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: "bidy-backend has no available replicas"
+        - alert: BidyPodCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total{namespace="bidy-dev"}[10m]) > 2
+          for: 2m
+          labels: { severity: warning }
+          annotations:
+            summary: "{{ $labels.pod }} restarted {{ $value | printf \"%.0f\" }} times in 10m"
+        - alert: BidyPodNotReady
+          # only Running pods: Completed Job pods (migrate, backup) are never Ready by design
+          expr: |
+            sum by (pod) (
+              kube_pod_status_ready{namespace="bidy-dev", condition="false"}
+              and on (namespace, pod) kube_pod_status_phase{namespace="bidy-dev", phase="Running"} == 1
+            ) > 0
+          for: 5m
+          labels: { severity: warning }
+          annotations:
+            summary: "{{ $labels.pod }} has not been Ready for 5m"
+        - alert: BidyDeploymentUnavailable
+          expr: kube_deployment_status_replicas_available{namespace="bidy-dev"} == 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: "{{ $labels.deployment }} has no available replicas"
+        - alert: BidyHpaAtMax
+          expr: kube_horizontalpodautoscaler_status_current_replicas{namespace="bidy-dev"} >= kube_horizontalpodautoscaler_spec_max_replicas{namespace="bidy-dev"}
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "HPA {{ $labels.horizontalpodautoscaler }} has been at max replicas for 10m"
+        - alert: PostgresBackupFailed
+          expr: kube_job_status_failed{namespace="bidy-dev", job_name=~"postgres-backup.*"} > 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: "Postgres backup job {{ $labels.job_name }} failed"
+        - alert: PostgresBackupMissing
+          expr: time() - kube_cronjob_status_last_successful_time{namespace="bidy-dev", cronjob="postgres-backup"} > 26 * 3600
+          for: 10m
+          labels: { severity: critical }
+          annotations:
+            summary: "No successful Postgres backup in the last 26h"

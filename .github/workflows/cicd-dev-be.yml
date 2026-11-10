@@ -1,0 +1,163 @@
+name: CI/CD (dev) - bidy-be
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'bidy-be/**'
+      - '.github/workflows/cicd-dev-be.yml'
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - 'bidy-be/**'
+      - '.github/workflows/cicd-dev-be.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: cicd-dev-be-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 24.x
+  IMAGE_NAME: bidy-be
+
+jobs:
+  ci:
+    name: Lint & test
+    runs-on: ubuntu-latest
+    # The test env vars below are stored in the dev Environment; without this the job cannot read them.
+    environment: dev
+    defaults:
+      run:
+        working-directory: bidy-be
+    env:
+      NODE_ENV: test
+      # The app validates these at import time (wallet.config.ts, auth.service.ts) and
+      # presigns URLs against an R2 bucket. Set them in the dev Environment (Settings >
+      # Environments > dev) with throwaway test values, not the real Vault ones.
+      PLATFORM_WALLET_ID: ${{ vars.CI_PLATFORM_WALLET_ID }}
+      JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
+      JWT_REFRESH_SECRET: ${{ secrets.CI_JWT_REFRESH_SECRET }}
+      BUCKET_NAME: ${{ vars.CI_BUCKET_NAME }}
+      R2_ENDPOINT: ${{ vars.CI_R2_ENDPOINT }}
+      ACCESS_KEY_ID: ${{ secrets.CI_ACCESS_KEY_ID }}
+      SECRET_ACCESS_KEY: ${{ secrets.CI_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: bidy-be/package-lock.json
+
+      - run: npm ci
+      # TODO: .eslintrc.js has no TypeScript parser, so every .ts file is a parse error.
+      # Non-blocking until @typescript-eslint is set up (peer-conflicts with typescript 7).
+      - run: npm run lint
+        continue-on-error: true
+      # src/tests/run-checks.ts spawns every *.check.ts in its own tsx process.
+      # No .env in the repo: the job-level env above supplies what the checks need,
+      # and the DB-backed checks print SKIP when no Postgres is reachable.
+      - run: npm test
+
+  cd:
+    name: Build & push image
+    needs: ci
+    # Only deploy from dev; PRs just run CI.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      contents: write # commits the new image tag back to the repo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image ref
+        id: meta
+        run: |
+          echo "image=${{ vars.DOCKERHUB_USERNAME }}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "tag=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build a local single-arch image first so it can be scanned before anything is pushed.
+      - name: Build image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: ./bidy-be
+          load: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.image }}:scan
+          cache-from: type=gha,scope=be
+          cache-to: type=gha,scope=be,mode=max
+
+      - name: Trivy scan (report, all severities)
+        run: |
+          mkdir -p trivy-out "$HOME/.cache/trivy"
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+            -v "$PWD/trivy-out:/out" \
+            aquasec/trivy:0.57.1 image \
+              --format json --output /out/trivy-report.json --exit-code 0 \
+              "${{ steps.meta.outputs.image }}:scan"
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report-be
+          path: trivy-out/trivy-report.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # Fails the job (and so skips the push below) on any HIGH or CRITICAL finding.
+      - name: Trivy gate (HIGH/CRITICAL)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$HOME/.cache/trivy:/root/.cache/trivy" \
+            aquasec/trivy:0.57.1 image \
+              --severity HIGH,CRITICAL --exit-code 1 \
+              "${{ steps.meta.outputs.image }}:scan"
+
+      # Only reached if the scan gate passed. arm64 is included so the image runs on a local kind cluster on Apple Silicon.
+      - name: Build and push (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./bidy-be
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:dev
+          cache-from: type=gha,scope=be
+          cache-to: type=gha,scope=be,mode=max
+
+      # Argo CD watches k8s/apps/bidy/overlays/dev: changing the tag there is what
+      # triggers the rollout. Only k8s/** changes, which this workflow's path filter
+      # ignores, and GITHUB_TOKEN pushes don't start new workflow runs anyway.
+      - name: Bump image tag in overlay
+        run: |
+          yq -i '(.images[] | select(.name == "${{ steps.meta.outputs.image }}") | .newTag) = "${{ steps.meta.outputs.tag }}"' \
+            k8s/apps/bidy/overlays/dev/kustomization.yaml
+
+      - name: Commit and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add k8s/apps/bidy/overlays/dev/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "Tag already up to date"; exit 0
+          fi
+          git commit -m "chore(dev): bidy-be -> ${{ steps.meta.outputs.tag }}"
+          # BE and FE pipelines can finish at the same time: rebase onto whatever landed first
+          git pull --rebase origin dev
+          git push origin HEAD:dev

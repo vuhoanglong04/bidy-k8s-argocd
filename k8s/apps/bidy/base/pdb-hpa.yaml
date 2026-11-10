@@ -1,0 +1,65 @@
+# Keep at least one replica serving through node drains and rollouts.
+# Postgres/redis are single replicas: a PDB there would only block node drains.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bidy-backend
+  namespace: bidy-dev
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: bidy-backend }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bidy-frontend
+  namespace: bidy-dev
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: bidy-frontend }
+---
+# Scale on CPU relative to the pod's request. The worker is deliberately not scaled
+# (it owns the cron jobs).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: bidy-backend
+  namespace: bidy-dev
+  annotations:
+    # last wave: on a cold cluster metrics-server is still starting, and an unhealthy HPA
+    # must not hold back the Deployments
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: bidy-backend }
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 120
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: bidy-frontend
+  namespace: bidy-dev
+  annotations:
+    # last wave: on a cold cluster metrics-server is still starting, and an unhealthy HPA
+    # must not hold back the Deployments
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: bidy-frontend }
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 120
