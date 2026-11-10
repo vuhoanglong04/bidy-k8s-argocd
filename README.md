@@ -1,48 +1,31 @@
 # Bidy on Kubernetes: GitOps on a local kind cluster
 
-An online auction platform (Node/TypeScript API + cron worker, Next.js frontend, Postgres, Redis,
-Cloudflare R2) on a 3-node **kind** cluster. GitHub Actions builds and scans the images, **Argo CD**
-pulls the desired state from this repo.
+**Bidy** is an online auction platform: a Node/TypeScript API with a cron worker, a Next.js
+frontend, Postgres, Redis and Cloudflare R2. This repo runs it on a 3-node **kind** cluster with a
+complete CI/CD and GitOps pipeline, and is also a worked example of running a small production-style
+platform locally.
+
+**In short**
+- **Delivery:** a push to `dev` runs GitHub Actions (lint, test, build, **Trivy** scan, push image). The pipeline commits the new image tag to git and **Argo CD** rolls it out. Git is the only source of truth.
+- **Runtime:** frontend and backend autoscale (HPA 2-4), a single worker owns the cron jobs, Postgres and Redis keep data on PVCs, and a daily Postgres backup goes to R2 with a tested restore.
+- **Security:** secrets live in **Vault** and are synced by External Secrets Operator, never stored in git. Default-deny NetworkPolicy, non-root read-only pods, and a CI vulnerability gate.
+- **Observability:** Prometheus and Grafana (dashboard "Bidy Overview"), Loki with Alloy for logs, and Alertmanager emailing alerts through Gmail.
 
 | | |
 |---|---|
-| CI | GitHub Actions: lint, test, Docker build, **Trivy** scan (fails on HIGH/CRITICAL), multi-arch push to Docker Hub |
-| CD | **Argo CD** app-of-apps, automated sync with prune and self-heal; CI commits the new image tag, Argo rolls it out |
-| Cluster | kind (1 control-plane + 2 workers), **Cilium** CNI, **Traefik** ingress, metrics-server |
-| Secrets | **HashiCorp Vault** + **External Secrets Operator**: values live in Vault, never in git |
-| Resilience | HPA (2-4 replicas), PodDisruptionBudgets, probes, daily Postgres backup to R2 with a tested restore |
-| Security | default-deny **NetworkPolicy**, non-root pods, read-only root filesystem, dropped capabilities |
-| Observability | **Prometheus + Grafana** (dashboard "Bidy Overview"), **Loki + Alloy** for logs, **Alertmanager** email alerts |
+| CI | GitHub Actions, Trivy scan (fails on HIGH/CRITICAL), multi-arch push to Docker Hub |
+| CD | Argo CD app-of-apps, automated sync with prune and self-heal |
+| Cluster | kind (1 control-plane + 2 workers), Cilium CNI, Traefik ingress, metrics-server |
+| Secrets | HashiCorp Vault + External Secrets Operator |
+| Observability | kube-prometheus-stack, Loki, Alloy, Alertmanager |
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  dev([git push to dev]) --> gha[GitHub Actions<br/>test, build, Trivy, push image<br/>commit new tag]
-  gha --> repo[(this repo, branch dev)]
-  repo -. polled .-> argo
-
-  subgraph kind[kind cluster]
-    argo[Argo CD] --> apps
-    subgraph apps[ns bidy-dev]
-      fe[frontend] --- be[backend] --- wk[worker, cron]
-      pg[(Postgres)]
-      rd[(Redis)]
-    end
-    tr[Traefik] --> fe
-    tr --> be
-    prom[Prometheus] -. scrapes .-> apps
-    alloy[Alloy] -- logs --> loki[Loki]
-    prom --> am[Alertmanager] --> mail([email])
-    graf[Grafana] --> prom
-    graf --> loki
-  end
-  user([browser]) --> tr
-```
+![Architecture of Bidy on Kubernetes](k8s/docs/architecture.svg)
 
 A push to `dev` runs the pipeline for the changed app. After the image passes the Trivy gate, the
 workflow edits the tag in `k8s/apps/bidy/overlays/dev/kustomization.yaml` and commits it back; Argo CD
-runs the migration hook and rolls the Deployments. Git is the only source of truth.
+runs the migration hook and rolls the Deployments.
 
 ## Repository layout
 
