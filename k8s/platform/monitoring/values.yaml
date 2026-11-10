@@ -3,7 +3,11 @@
 fullnameOverride: monitoring
 
 alertmanager:
-  enabled: false # no receiver to notify on a local cluster; alerts are visible in Prometheus/Grafana
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { cpu: 100m, memory: 96Mi }
 
 # kind runs these on the control-plane bound to localhost, so scraping them only produces false alerts.
 kubeEtcd: { enabled: false }
@@ -23,6 +27,11 @@ prometheus:
       limits: { cpu: 700m, memory: 900Mi }
 
 grafana:
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki.monitoring.svc:3100
   defaultDashboardsTimezone: Asia/Ho_Chi_Minh
   ingress:
     enabled: true
@@ -63,7 +72,11 @@ prometheus-node-exporter:
     port: 9101
     targetPort: 9101
   tolerations:
-    - { key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule }
+    - {
+        key: node-role.kubernetes.io/control-plane,
+        operator: Exists,
+        effect: NoSchedule,
+      }
   resources:
     requests: { cpu: 10m, memory: 24Mi }
     limits: { cpu: 100m, memory: 64Mi }
