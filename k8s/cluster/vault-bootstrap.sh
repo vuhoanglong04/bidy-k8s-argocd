@@ -60,6 +60,25 @@ vexec write auth/kubernetes/role/bidy-dev \
   bound_service_account_namespaces=bidy-dev \
   policies=bidy-dev-read ttl=15m >/dev/null
 
+# Alertmanager SMTP password (namespace monitoring). ESO reads it with its own read-only role.
+vexec policy write monitoring-read - >/dev/null <<'POLICY'
+path "secret/data/monitoring/alertmanager"     { capabilities = ["read"] }
+path "secret/metadata/monitoring/alertmanager" { capabilities = ["read","list"] }
+POLICY
+vexec write auth/kubernetes/role/monitoring \
+  bound_service_account_names=eso-vault \
+  bound_service_account_namespaces=monitoring \
+  policies=monitoring-read ttl=15m >/dev/null
+ALERT_FILE="$BIDY_DIR/alertmanager-secret.json"   # {"smtp_password": "<gmail app password>"}
+if vexec kv get secret/monitoring/alertmanager >/dev/null 2>&1; then
+  echo "secret/monitoring/alertmanager already has data, leaving it alone"
+elif [ -r "$ALERT_FILE" ]; then
+  step "loading secret/monitoring/alertmanager from $ALERT_FILE"
+  jq -c . "$ALERT_FILE" | vexec kv put secret/monitoring/alertmanager - >/dev/null
+else
+  echo "NOTE: $ALERT_FILE is missing, so Alertmanager cannot send email until you load smtp_password."
+fi
+
 if vexec kv get secret/bidy/dev >/dev/null 2>&1; then
   echo "secret/bidy/dev already has data, leaving it alone"
 elif [ -r "$SECRETS_FILE" ]; then

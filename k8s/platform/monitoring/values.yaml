@@ -4,7 +4,34 @@ fullnameOverride: monitoring
 
 alertmanager:
   enabled: true
+  config:
+    global:
+      resolve_timeout: 5m
+      smtp_smarthost: smtp.gmail.com:587
+      smtp_from: longprovip2508@gmail.com
+      smtp_auth_username: longprovip2508@gmail.com
+      # Gmail app password, mounted from the alertmanager-smtp Secret (Vault -> ESO)
+      smtp_auth_password_file: /etc/alertmanager/secrets/alertmanager-smtp/smtp_password
+      smtp_require_tls: true
+    route:
+      receiver: "null"
+      group_by: [alertname, namespace]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        # only our own rules (extras/bidy-rules.yaml) send email; the chart's ~100 default
+        # alerts stay visible in the UI but do not fill the inbox
+        - receiver: email
+          matchers: ['alertname=~"Bidy.*|Postgres.*"']
+    receivers:
+      - name: "null"
+      - name: email
+        email_configs:
+          - to: longvulinhhoang@gmail.com
+            send_resolved: true
   alertmanagerSpec:
+    secrets: [alertmanager-smtp]
     resources:
       requests: { cpu: 10m, memory: 32Mi }
       limits: { cpu: 100m, memory: 96Mi }
@@ -29,6 +56,7 @@ prometheus:
 grafana:
   additionalDataSources:
     - name: Loki
+      uid: loki
       type: loki
       access: proxy
       url: http://loki.monitoring.svc:3100

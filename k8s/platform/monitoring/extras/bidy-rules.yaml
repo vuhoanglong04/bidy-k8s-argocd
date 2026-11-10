@@ -10,6 +10,13 @@ spec:
   groups:
     - name: bidy.rules
       rules:
+        - alert: BidyBackendDown
+          # no backend pod is serving traffic (covers crashes, failed rollouts and a missing Deployment)
+          expr: (sum(kube_deployment_status_replicas_available{namespace="bidy-dev", deployment="bidy-backend"}) or vector(0)) == 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: "bidy-backend has no available replicas"
         - alert: BidyPodCrashLooping
           expr: increase(kube_pod_container_status_restarts_total{namespace="bidy-dev"}[10m]) > 2
           for: 2m
